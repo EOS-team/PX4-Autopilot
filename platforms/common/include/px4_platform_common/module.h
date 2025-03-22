@@ -57,7 +57,11 @@
  *        there is only a single global mutex. This sounds bad, but we actually don't expect
  *        contention here, as module startup is sequential.
  */
+#ifndef __PX4_EVL4
 extern pthread_mutex_t px4_modules_mutex;
+#else
+extern struct evl_mutex px4_modules_mutex;
+#endif
 
 /**
  * @class ModuleBase
@@ -405,7 +409,11 @@ private:
 	 */
 	static void lock_module()
 	{
+#ifndef __PX4_EVL4
 		pthread_mutex_lock(&px4_modules_mutex);
+#else
+		evl_lock_mutex(&px4_modules_mutex);
+#endif
 	}
 
 	/**
@@ -413,7 +421,11 @@ private:
 	 */
 	static void unlock_module()
 	{
+#ifndef __PX4_EVL4
 		pthread_mutex_unlock(&px4_modules_mutex);
+#else
+		evl_unlock_mutex(&px4_modules_mutex);
+#endif
 	}
 
 	/** @var _task_should_exit Boolean flag to indicate if the task should exit. */

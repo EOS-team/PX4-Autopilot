@@ -5,6 +5,11 @@
 #include <time.h>
 #include <pthread.h>
 
+#if defined(__PX4_EVL4)
+#include <evl/mutex.h>
+#include <evl/event.h>
+#endif
+
 #if defined(__PX4_POSIX)
 __BEGIN_DECLS
 __EXPORT int px4_clock_gettime(clockid_t clk_id, struct timespec *tp);
@@ -30,9 +35,16 @@ __END_DECLS
 __BEGIN_DECLS
 __EXPORT int px4_usleep(useconds_t usec);
 __EXPORT unsigned int px4_sleep(unsigned int seconds);
+
+#if defined(__PX4_EVL4)
+__EXPORT int px4_pthread_cond_timedwait(struct evl_event *cond,
+					struct evl_mutex *mutex,
+					const struct timespec *abstime);
+#else
 __EXPORT int px4_pthread_cond_timedwait(pthread_cond_t *cond,
 					pthread_mutex_t *mutex,
 					const struct timespec *abstime);
+#endif
 __END_DECLS
 
 #else

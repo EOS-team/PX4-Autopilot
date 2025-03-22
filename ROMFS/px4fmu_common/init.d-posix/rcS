@@ -3,7 +3,7 @@
 # Un comment and use set +e to ignore and set -e to enable 'exit on error control'
 set +e
 # Un comment the line below to help debug scripts by printing a trace of the script commands
-#set -x
+set -x
 
 # PX4 commands need the 'px4-' prefix in bash.
 # (px4-alias.sh is expected to be in the PATH)

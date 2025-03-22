@@ -45,6 +45,11 @@
 #include <pthread.h>
 #include <stdlib.h>
 
+#if defined(__PX4_EVL4)
+#include <evl/mutex.h>
+#include <evl/event.h>
+#endif
+
 template<class T>
 class BlockingList : public IntrusiveSortedList<T>
 {
@@ -52,8 +57,13 @@ public:
 
 	~BlockingList()
 	{
+#if defined(__PX4_EVL4)
+		evl_close_mutex(&_mutex);
+		evl_close_event(&_cv);
+#else
 		pthread_mutex_destroy(&_mutex);
 		pthread_cond_destroy(&_cv);
+#endif
 	}
 
 	void add(T newNode)
@@ -80,11 +90,19 @@ public:
 		IntrusiveSortedList<T>::clear();
 	}
 
+#if defined(__PX4_EVL4)
+	struct evl_mutex &mutex() { return _mutex; }
+#else
 	pthread_mutex_t &mutex() { return _mutex; }
+#endif
 
 private:
-
+#if defined(__PX4_EVL4)
+	struct evl_mutex _mutex = EVL_MUTEX_INITIALIZER(nullptr, EVL_CLOCK_MONOTONIC, 0, EVL_MUTEX_NORMAL);
+	struct evl_event _cv = EVL_EVENT_INITIALIZER(nullptr, EVL_CLOCK_MONOTONIC, EVL_CLONE_PRIVATE);
+#else
 	pthread_mutex_t	_mutex = PTHREAD_MUTEX_INITIALIZER;
 	pthread_cond_t	_cv = PTHREAD_COND_INITIALIZER;
+#endif
 
 };

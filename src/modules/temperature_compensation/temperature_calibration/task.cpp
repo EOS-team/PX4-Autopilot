@@ -105,6 +105,9 @@ void TemperatureCalibration::task_main()
 	// subscribe to all gyro instances
 	int gyro_sub[SENSOR_COUNT_MAX] {-1, -1, -1};
 	px4_pollfd_struct_t fds[SENSOR_COUNT_MAX] {};
+#ifdef __PX4_EVL4
+	px4_sem_t sem[SENSOR_COUNT_MAX];
+#endif
 	unsigned num_gyro = orb_group_count(ORB_ID(sensor_gyro));
 
 	if (num_gyro > SENSOR_COUNT_MAX) {
@@ -115,6 +118,11 @@ void TemperatureCalibration::task_main()
 		gyro_sub[i] = orb_subscribe_multi(ORB_ID(sensor_gyro), i);
 		fds[i].fd = gyro_sub[i];
 		fds[i].events = POLLIN;
+#ifdef __PX4_EVL4
+		px4_sem_init(&sem[i], 0, 0);
+		px4_sem_setprotocol(&sem[i], SEM_PRIO_NONE);
+		fds[i].sem = &sem[i];
+#endif
 	}
 
 	int32_t min_temp_rise = 24;

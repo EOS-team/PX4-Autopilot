@@ -35,23 +35,48 @@
 
 #include <pthread.h>
 
+#if defined(__PX4_EVL4)
+#include <px4_platform_common/evl_helper.h>
+#include <evl/mutex.h>
+#endif
+
 class LockGuard
 {
 public:
+#if defined(__PX4_EVL4)
+	explicit LockGuard(struct evl_mutex &mutex) :
+		_mutex(mutex)
+	{
+		int eret;
+		__Tcall_assert(eret, evl_lock_mutex(&_mutex));
+	}
+#else
 	explicit LockGuard(pthread_mutex_t &mutex) :
 		_mutex(mutex)
 	{
 		pthread_mutex_lock(&_mutex);
 	}
+#endif
 
 	LockGuard(const LockGuard &other) = delete;
 	LockGuard &operator=(const LockGuard &other) = delete;
 
 	~LockGuard()
 	{
+#if defined(__PX4_EVL4)
+		int eret;
+		__Tcall_assert(eret, evl_unlock_mutex(&_mutex));
+#else
 		pthread_mutex_unlock(&_mutex);
+#endif
 	}
 
 private:
+
+#if defined(__PX4_EVL4)
+	struct evl_mutex &_mutex;
+#else
 	pthread_mutex_t &_mutex;
+#endif
+
 };

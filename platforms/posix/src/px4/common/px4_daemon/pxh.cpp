@@ -52,6 +52,11 @@
 
 #include "pxh.h"
 
+#ifdef __PX4_EVL4
+#include <evl/proxy.h>
+#define printf evl_printf
+#endif
+
 namespace px4_daemon
 {
 

@@ -44,7 +44,13 @@
 #include <px4_platform_common/defines.h>
 #include <px4_platform_common/log.h>
 
+#ifndef __PX4_EVL4
 pthread_mutex_t px4_modules_mutex = PTHREAD_MUTEX_INITIALIZER;
+#else
+#include <evl/mutex.h>
+struct evl_mutex px4_modules_mutex = EVL_MUTEX_INITIALIZER("/modules_mutex", EVL_CLOCK_MONOTONIC, 0,
+				     EVL_MUTEX_NORMAL | EVL_CLONE_PUBLIC);
+#endif
 
 #ifndef __PX4_NUTTX
 

@@ -37,6 +37,13 @@
 #include <px4_log.h>
 #include <errno.h>
 
+#ifdef __PX4_EVL4
+#define pthread_mutex_init evl_new_mutex
+#define pthread_mutex_destroy evl_close_mutex
+#define pthread_mutex_lock evl_lock_mutex
+#define pthread_mutex_unlock evl_unlock_mutex
+#endif
+
 namespace events
 {
 

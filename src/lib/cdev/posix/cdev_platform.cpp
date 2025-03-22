@@ -42,10 +42,22 @@
 
 #include <stdlib.h>
 
+#ifdef __PX4_EVL4
+#include <evl/thread.h>
+#include <evl/mutex.h>
+#define pthread_mutex_lock evl_lock_mutex
+#define pthread_mutex_unlock evl_unlock_mutex
+#endif
+
 const cdev::px4_file_operations_t cdev::CDev::fops = {};
 
+#ifndef __PX4_EVL4
 pthread_mutex_t devmutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
+#else
+struct evl_mutex devmutex = EVL_MUTEX_INITIALIZER("/devmutex", EVL_CLOCK_MONOTONIC, 0, EVL_MUTEX_NORMAL);
+struct evl_mutex filemutex = EVL_MUTEX_INITIALIZER("/filemutex", EVL_CLOCK_MONOTONIC, 0, EVL_MUTEX_NORMAL);
+#endif
 
 struct px4_dev_t {
 	char *name{nullptr};
@@ -344,13 +356,19 @@ extern "C" {
 		char thread_name[NAMELEN] {};
 
 #ifndef __PX4_QURT
+
+#ifdef __PX4_EVL4
+		snprintf(thread_name, NAMELEN, "efd: %d", evl_get_self());
+#else // __PX4_EVL4
 		int nret = pthread_getname_np(pthread_self(), thread_name, NAMELEN);
 
 		if (nret || thread_name[0] == 0) {
 			PX4_WARN("failed getting thread name");
 		}
 
-#endif
+#endif // __PX4_EVL4
+
+#endif // __PX4_QURT
 
 		PX4_DEBUG("Called px4_poll timeout = %d", timeout);
 

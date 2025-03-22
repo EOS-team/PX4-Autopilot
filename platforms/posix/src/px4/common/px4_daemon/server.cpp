@@ -54,6 +54,11 @@
 
 #include <px4_platform_common/log.h>
 
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#include <evl/thread.h>
+#endif
+
 #include "pxh.h"
 #include "server.h"
 
@@ -235,6 +240,22 @@ Server::_server_main()
 void
 *Server::_handle_client(void *arg)
 {
+#ifdef __PX4_EVL4
+	struct sched_param param;
+	int ret, efd;
+	// Have the same priority as hpwork thread.
+	param.sched_priority = 98;
+	ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+
+	if (ret) {
+		PX4_ERR("failed to set handle_client thread to SCHED_FIFO, %s", strerror(ret));
+		return nullptr;
+	}
+
+	// FIXME: error
+	__Tcall_assert(efd, evl_attach_self(nullptr));
+#endif
+
 	FILE *out = (FILE *)arg;
 	int fd = fileno(out);
 

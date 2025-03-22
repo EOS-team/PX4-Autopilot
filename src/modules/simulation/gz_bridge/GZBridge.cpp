@@ -42,6 +42,10 @@
 
 #include <iostream>
 #include <string>
+#if defined(__PX4_EVL4)
+#define pthread_mutex_lock evl_lock_mutex
+#define pthread_mutex_unlock evl_unlock_mutex
+#endif
 
 GZBridge::GZBridge(const char *world, const char *name, const char *model,
 		   const char *pose_str) :
@@ -52,7 +56,12 @@ GZBridge::GZBridge(const char *world, const char *name, const char *model,
 	_model_sim(model),
 	_model_pose(pose_str)
 {
+#if !defined(__PX4_EVL4)
 	pthread_mutex_init(&_node_mutex, nullptr);
+#else
+	int efd;
+	__Tcall_assert(efd, evl_new_mutex(&_node_mutex, nullptr));
+#endif
 
 	updateParams();
 }
@@ -906,7 +915,7 @@ bool GZBridge::callEntityFactoryService(const std::string &service, const gz::ms
 	bool result;
 	gz::msgs::Boolean rep;
 
-	if (_node.Request(service, req, 1000, rep, result)) {
+	if (_node.Request(service, req, 3000, rep, result)) {
 		if (!rep.data() || !result) {
 			PX4_ERR("EntityFactory service call failed.");
 			return false;

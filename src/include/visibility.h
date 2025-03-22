@@ -17,14 +17,13 @@
  *    without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
  * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
  * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
  * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
@@ -61,11 +60,27 @@
 
 
 #define system_exit exit
+
+#ifdef __PX4_EVL4
+#include <evl/clock.h>
+#define system_clock_gettime evl_read_clock
+#define system_clock_settime evl_set_clock
+#define system_pthread_cond_timedwait evl_timedwait_event
+#define system_usleep evl_usleep
+#define system_sleep(__sec) ({ \
+		int __ret = 0; \
+		for (unsigned int __i = 0; __i < __sec && __ret == 0; __i++) { \
+			__ret = evl_usleep(1000000); \
+		} \
+		__ret; \
+	})
+#else
 #define system_clock_gettime clock_gettime
 #define system_clock_settime clock_settime
 #define system_pthread_cond_timedwait pthread_cond_timedwait
 #define system_usleep usleep
 #define system_sleep sleep
+#endif
 
 #ifndef PX4_DISABLE_GCC_POISON
 
@@ -97,7 +112,6 @@
 // symbols in cannode.
 // We can't include this for Qurt because it uses it's own thread primitives
 #endif // !defined(__PX4_NUTTX) && !defined(__PX4_QURT)
-#define system_pthread_cond_timedwait pthread_cond_timedwait
 /* We can't poison pthread_cond_timedwait because it seems to be used in the
  * <string> include. */
 

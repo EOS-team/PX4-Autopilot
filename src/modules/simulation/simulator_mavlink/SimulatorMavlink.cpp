@@ -996,7 +996,7 @@ void SimulatorMavlink::send()
 {
 #ifdef __PX4_DARWIN
 	pthread_setname_np("sim_send");
-#else
+#elif !defined(__PX4_EVL4)
 	pthread_setname_np(pthread_self(), "sim_send");
 #endif
 
@@ -1071,7 +1071,7 @@ void SimulatorMavlink::run()
 {
 #ifdef __PX4_DARWIN
 	pthread_setname_np("sim_rcv");
-#else
+#elif !defined(__PX4_EVL4)
 	pthread_setname_np(pthread_self(), "sim_rcv");
 #endif
 

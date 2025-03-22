@@ -516,6 +516,18 @@ unsigned int px4_sleep(unsigned int seconds)
 	return lockstep_scheduler.usleep_until(time_finished);
 }
 
+#if defined(__PX4_EVL4)
+
+int px4_pthread_cond_timedwait(struct evl_event *cond,
+			       struct evl_mutex *mutex,
+			       const struct timespec *ts)
+{
+	const uint64_t scheduled = ts_to_abstime(ts);
+	return lockstep_scheduler.cond_timedwait(cond, mutex, scheduled);
+}
+
+#else
+
 int px4_pthread_cond_timedwait(pthread_cond_t *cond,
 			       pthread_mutex_t *mutex,
 			       const struct timespec *ts)
@@ -523,6 +535,8 @@ int px4_pthread_cond_timedwait(pthread_cond_t *cond,
 	const uint64_t scheduled = ts_to_abstime(ts);
 	return lockstep_scheduler.cond_timedwait(cond, mutex, scheduled);
 }
+
+#endif
 
 int px4_lockstep_register_component()
 {

@@ -75,7 +75,9 @@
 #include <gz/msgs/laserscan.pb.h>
 #include <gz/msgs/stringmsg.pb.h>
 #include <gz/msgs/scene.pb.h>
-
+#ifdef __PX4_EVL4
+#define pthread_mutex_t struct evl_mutex
+#endif
 using namespace time_literals;
 
 class GZBridge : public ModuleBase<GZBridge>, public ModuleParams, public px4::ScheduledWorkItem
