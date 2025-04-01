@@ -204,7 +204,7 @@ fi
 # Autostart ID
 autostart_file=''
 # shellcheck disable=SC2231
-for f in ${R}etc/init.d-posix/airframes/"$(param show -q SYS_AUTOSTART)"_*
+for f in ${R}etc/init.d-posix/airframes/"${SYS_AUTOSTART}"_*
 do
 	filename=$(basename "$f")
 	case "$filename" in

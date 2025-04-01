@@ -699,7 +699,10 @@ task_main(int argc, char *argv[])
 
 	/* Tell startup that the worker thread has completed its initialization */
 	px4_sem_post(&g_init_sema);
-
+#ifdef __PX4_EVL4
+	/* Initialize the poll structure */
+	px4_poll_init(&fds, 1);
+#endif
 	/* Start the endless loop, waiting for then processing work requests */
 	while (true) {
 
@@ -798,12 +801,18 @@ task_main(int argc, char *argv[])
 			}
 		}
 
+#ifdef __PX4_EVL4
+		// sleep 5us here.
+		evl_usleep(5);
+#endif
 		/* time to go???? */
 		if (g_task_should_exit) {
 			break;
 		}
 	}
-
+#ifdef __PX4_EVL4
+	px4_poll_destory(&fds, 1);
+#endif
 	orb_unsubscribe(dataman_request_sub);
 
 	g_dm_ops->shutdown();
@@ -829,6 +838,7 @@ start()
 
 	px4_sem_setprotocol(&g_init_sema, SEM_PRIO_NONE);
 
+	PX4_INFO("dataman px4_task_spwan");
 	/* start the worker thread with low priority for disk IO */
 	if (px4_task_spawn_cmd("dataman", SCHED_DEFAULT, SCHED_PRIORITY_DEFAULT - 10,
 			       PX4_STACK_ADJUSTED(TASK_STACK_SIZE), task_main,
@@ -954,7 +964,7 @@ dataman_main(int argc, char *argv[])
 			backend = BACKEND_FILE;
 			k_data_manager_device_path = strdup(default_device_path);
 		}
-
+		PX4_INFO("dataman start");
 		start();
 
 		if (!is_running()) {

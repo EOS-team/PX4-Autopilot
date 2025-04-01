@@ -131,12 +131,6 @@ static void *entry_adapter(void *ptr)
 		evl_eprintf("%s:%d: FAILED: %s\n", __FILE__, __LINE__, strerror(-efd));
 		exit(efd);
 	}
-
-	// TODO: ONLY FOR DEBUG: Set thread mode
-	if (strcmp("dataman", data->name) == 0) {
-		// __Tcall_assert(efd, evl_set_thread_mode(efd, EVL_T_WOSO|EVL_T_WOSS|EVL_T_HMSIG, nullptr));
-	}
-
 #endif
 
 	data->entry(data->argc, data->argv);
@@ -373,7 +367,9 @@ void px4_task_exit(int ret)
 	}
 
 	pthread_mutex_unlock(&task_mutex);
-
+#ifdef __PX4_EVL4
+	evl_detach_self();
+#endif
 	pthread_exit((void *)(unsigned long)ret);
 }
 

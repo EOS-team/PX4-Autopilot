@@ -184,7 +184,6 @@ Server::_server_main()
 			} else {
 				// Set stream to line buffered.
 				setvbuf(thread_stdout, nullptr, _IOLBF, BUFSIZ);
-
 				// Start a new thread to handle the client.
 				pthread_t *thread = &_fd_to_thread[client];
 				ret = pthread_create(thread, nullptr, Server::_handle_client, thread_stdout);
@@ -240,22 +239,6 @@ Server::_server_main()
 void
 *Server::_handle_client(void *arg)
 {
-#ifdef __PX4_EVL4
-	struct sched_param param;
-	int ret, efd;
-	// Have the same priority as hpwork thread.
-	param.sched_priority = 98;
-	ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
-
-	if (ret) {
-		PX4_ERR("failed to set handle_client thread to SCHED_FIFO, %s", strerror(ret));
-		return nullptr;
-	}
-
-	// FIXME: error
-	__Tcall_assert(efd, evl_attach_self(nullptr));
-#endif
-
 	FILE *out = (FILE *)arg;
 	int fd = fileno(out);
 
@@ -300,6 +283,9 @@ void
 		(void)pthread_setspecific(_instance->_key, (void *)thread_data_ptr);
 	}
 
+#ifdef __PX4_EVL4
+	__attach_and_setsched(SCHED_FIFO, 98, cmd.c_str());
+#endif
 	// Run the actual command.
 	int retval = Pxh::process_line(cmd, true);
 

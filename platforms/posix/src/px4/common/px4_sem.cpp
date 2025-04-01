@@ -244,32 +244,52 @@ int px4_sem_setprotocol(px4_sem_t *s, int protocol)
 
 int px4_sem_wait(px4_sem_t *s)
 {
-	return -evl_get_sem(s);
+	int ret;
+	// __Tcall_assert(ret, evl_get_sem(s));
+	ret = evl_get_sem(s);
+	if (ret < 0) {
+		throw "evl_get_sem failed";
+	}
+	return -ret;
 }
 
 int px4_sem_trywait(px4_sem_t *s)
 {
-	return -evl_tryget_sem(s);
+	int ret;
+	__Tcall_assert(ret, evl_tryget_sem(s));
+	return -ret;
 }
 
 int px4_sem_timedwait(px4_sem_t *s, const struct timespec *abstime)
 {
-	return -evl_timedget_sem(s, abstime);
+	int ret;
+	__Tcall_assert(ret, evl_timedget_sem(s, abstime));
+	return -ret;
 }
 
 int px4_sem_post(px4_sem_t *s)
 {
-	return -evl_put_sem(s);
+	int ret;
+	// __Tcall_assert(ret, evl_put_sem(s));
+	ret = evl_put_sem(s);
+	if (ret < 0) {
+		throw "evl_put_sem failed";
+	}
+	return -ret;
 }
 
 int px4_sem_getvalue(px4_sem_t *s, int *sval)
 {
-	return -evl_peek_sem(s, sval);
+	int ret;
+	__Tcall_assert(ret, evl_peek_sem(s, sval));
+	return -ret;
 }
 
 int px4_sem_destroy(px4_sem_t *s)
 {
-	return -evl_close_sem(s);
+	int ret;
+	__Tcall_assert(ret, evl_close_sem(s));
+	return -ret;
 }
 
 #endif // !defined(__PX4_EVL4)

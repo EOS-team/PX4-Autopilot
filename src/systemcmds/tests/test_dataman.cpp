@@ -584,6 +584,10 @@ DatamanTest::testAsyncMutipleClients()
 
 void *DatamanTest::testAsyncThread(void *arg)
 {
+#ifdef __PX4_EVL4
+	int ret;
+	__Tcall_assert(ret, evl_attach_self(nullptr));
+#endif
 	DatamanTest *dataman_test = (DatamanTest *)arg;
 	const uint32_t index = dataman_test->_thread_index.fetch_add(1);
 	State state = State::Write;

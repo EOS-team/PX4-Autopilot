@@ -47,6 +47,10 @@
 # include <malloc.h>
 # include <systemlib/hardfault_log.h>
 #endif // __PX4_NUTTX
+#if defined(__PX4_EVL4)
+#include <evl/thread.h>
+#include <px4_platform_common/evl_helper.h>
+#endif
 
 using namespace time_literals;
 
@@ -316,6 +320,10 @@ void LogWriterFile::thread_stop()
 
 void *LogWriterFile::run_helper(void *context)
 {
+#ifdef __PX4_EVL4
+	int ret;
+	__Tcall_assert(ret, evl_attach_self("log_writer_file"));
+#endif
 	px4_prctl(PR_SET_NAME, "log_writer_file", px4_getpid());
 
 	static_cast<LogWriterFile *>(context)->run();

@@ -695,6 +695,13 @@ void Logger::run()
 
 	bool was_started = false;
 
+#ifdef __PX4_EVL4
+	px4_pollfd_struct_t fds[1];
+	fds[0].fd = polling_topic_sub;
+	fds[0].events = POLLIN;
+	px4_poll_init(fds, 1);
+#endif
+
 	while (!should_exit()) {
 		// Start/stop logging (depending on logging mode, by default when arming/disarming)
 		const bool logging_started = start_stop_logging();
@@ -900,10 +907,11 @@ void Logger::run()
 		// wait for next loop iteration...
 		if (polling_topic_sub >= 0) {
 			px4_lockstep_progress(_lockstep_component);
-
+#ifndef __PX4_EVL4
 			px4_pollfd_struct_t fds[1];
 			fds[0].fd = polling_topic_sub;
 			fds[0].events = POLLIN;
+#endif
 			int pret = px4_poll(fds, 1, 20);
 
 			if (pret < 0) {
@@ -935,6 +943,10 @@ void Logger::run()
 
 	hrt_cancel(&timer_call);
 	px4_sem_destroy(&_timer_callback_data.semaphore);
+
+#ifdef __PX4_EVL4
+	px4_poll_destory(fds, 1);
+#endif
 
 	// stop the writer thread
 	_writer.thread_stop();

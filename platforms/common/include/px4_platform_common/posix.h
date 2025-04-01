@@ -94,6 +94,16 @@ typedef struct {
 	/* Required for PX4 compatibility */
 	px4_sem_t   *sem;  	/* Pointer to semaphore used to post output event */
 	void   *priv;     	/* For use by drivers */
+#ifdef __PX4_EVL4
+        /* Store the evl pollfd, all fds in a array have the same efd
+        we can just store it at the head of array
+        */
+       int efd;
+       /* Store the result pollset, all fds in a array have the same pollset
+       we can just store it at the head of array
+       */
+       struct evl_poll_event *pollset;
+#endif
 } px4_pollfd_struct_t;
 
 #ifndef POLLIN
@@ -118,6 +128,10 @@ __EXPORT int 		px4_close(int fd);
 __EXPORT ssize_t	px4_read(int fd, void *buffer, size_t buflen);
 __EXPORT ssize_t	px4_write(int fd, const void *buffer, size_t buflen);
 __EXPORT int		px4_ioctl(int fd, int cmd, unsigned long arg);
+#ifdef __PX4_EVL4
+__EXPORT int 		px4_poll_init(px4_pollfd_struct_t *fds, unsigned int nfds);
+__EXPORT int 		px4_poll_destory(px4_pollfd_struct_t *fds, unsigned int nfds);
+#endif
 __EXPORT int		px4_poll(px4_pollfd_struct_t *fds, unsigned int nfds, int timeout);
 __EXPORT int		px4_access(const char *pathname, int mode);
 __EXPORT px4_task_t	px4_getpid(void);

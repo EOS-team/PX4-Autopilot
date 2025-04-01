@@ -44,13 +44,23 @@
 #include "lockstep_components.h"
 
 #if defined(__PX4_EVL4)
+#include <evl/evl.h>
 #include <evl/mutex.h>
+#include <px4_platform_common/evl_helper.h>
 #endif
 
 class LockstepScheduler
 {
 public:
-	LockstepScheduler(bool no_cleanup_on_destroy = false) : _components(no_cleanup_on_destroy) {}
+	LockstepScheduler(bool no_cleanup_on_destroy = false) : _components(no_cleanup_on_destroy) {
+#ifdef __PX4_EVL4
+		int ret;
+		if (evl_get_self() == -EPERM) {
+			__Tcall_assert(ret, evl_attach_self("/lockstep"));
+		}
+		__Tcall_assert(ret, evl_new_mutex(&_timed_waits_mutex, nullptr));
+#endif
+	}
 	~LockstepScheduler();
 
 	void set_absolute_time(uint64_t time_us);
@@ -115,6 +125,15 @@ private:
 
 	std::atomic<uint64_t> _time_us{0};
 	TimedWait *_timed_waits{nullptr}; ///< head of linked list
+#if not defined(__PX4_EVL4)
 	std::mutex _timed_waits_mutex;
+#else
+	struct evl_mutex _timed_waits_mutex;
+	struct cond_wait_sync {
+		struct evl_mutex lock;
+		struct evl_event cond;
+		bool initialized{false};
+	};
+#endif
 	std::atomic<bool> _setting_time{false}; ///< true if set_absolute_time() is currently being executed
 };

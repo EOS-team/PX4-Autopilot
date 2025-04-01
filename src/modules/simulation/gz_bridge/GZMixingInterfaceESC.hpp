@@ -40,11 +40,10 @@
 
 #include <uORB/PublicationMulti.hpp>
 #include <uORB/topics/esc_status.h>
-
-#if defined(__PX4_EVL4)
+#ifdef __PX4_EVL4
+#define pthread_mutex_t struct evl_mutex
 #define pthread_mutex_lock evl_lock_mutex
 #define pthread_mutex_unlock evl_unlock_mutex
-#define pthread_mutex_t struct evl_mutex
 #endif
 // GZBridge mixing class for ESCs.
 // It is separate from GZBridge to have separate WorkItems and therefore allowing independent scheduling

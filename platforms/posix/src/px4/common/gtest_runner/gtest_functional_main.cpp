@@ -37,10 +37,18 @@
 
 #include <lib/parameters/param.h>
 
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#endif
+
 int main(int argc, char **argv)
 {
 	testing::InitGoogleTest(&argc, argv);
-
+#ifdef __PX4_EVL4
+	// Initialization should be made out of band
+	int ret;
+	__Tcall_assert(ret, evl_attach_self("/gtest"));
+#endif
 	uORB::Manager::initialize();
 	param_init();
 	return RUN_ALL_TESTS();

@@ -35,5 +35,8 @@ set(SRCS
     gtest_functional_main.cpp
    )
 
+if(EVL4_TARGET)
+   add_definitions( "-D__PX4_EVL4" )
+endif()
 px4_add_library(gtest_functional_main ${SRCS})
 target_link_libraries(gtest_functional_main PUBLIC gtest)

@@ -54,6 +54,9 @@ DatamanClient::DatamanClient()
 
 		_fds.fd = _dataman_response_sub;
 		_fds.events = POLLIN;
+#ifdef __PX4_EVL4
+		px4_poll_init(&_fds, 1);
+#endif
 
 		hrt_abstime timestamp = hrt_absolute_time();
 
@@ -81,6 +84,9 @@ DatamanClient::~DatamanClient()
 	if (_dataman_response_sub >= 0) {
 		orb_unsubscribe(_dataman_response_sub);
 	}
+#ifdef __PX4_EVL4
+	px4_poll_destory(&_fds, 1);
+#endif
 }
 
 bool DatamanClient::syncHandler(const dataman_request_s &request, dataman_response_s &response,
@@ -140,7 +146,7 @@ bool DatamanClient::syncHandler(const dataman_request_s &request, dataman_respon
 	perf_end(_sync_perf);
 
 	if (!response_received && ret >= 0) {
-		PX4_ERR("timeout after %" PRIu32 " ms!", static_cast<uint32_t>(timeout / 1000));
+		PX4_ERR("syncHandler: timeout after %" PRIu32 " ms!", static_cast<uint32_t>(timeout / 1000));
 	}
 
 	return response_received;

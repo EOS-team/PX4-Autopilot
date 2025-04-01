@@ -240,7 +240,7 @@ WorkQueueRunner(void *context)
 #ifdef __PX4_EVL4
 	// Attach to evl core
 	int eret;
-	__Tcall_assert(eret, evl_attach_self(nullptr));
+	__Tcall_assert(eret, evl_attach_self("/%s",config->name));
 #endif
 	// add to work queue list
 	_wq_manager_wqs_list->add(&wq);

@@ -43,14 +43,23 @@
 
 LockstepScheduler::~LockstepScheduler()
 {
+#if not defined(__PX4_EVL4)
 	// cleanup the linked list
 	std::unique_lock<std::mutex> lock_timed_waits(_timed_waits_mutex);
-
+#else
+	int ret;
+	__Tcall_assert(ret, evl_lock_mutex(&_timed_waits_mutex));
+	// evl_printf("lock now\n");
+#endif
 	while (_timed_waits) {
 		TimedWait *tmp = _timed_waits;
 		_timed_waits = _timed_waits->next;
 		tmp->removed = true;
 	}
+#ifdef __PX4_EVL4
+	__Tcall_assert(ret, evl_unlock_mutex(&_timed_waits_mutex));
+	// evl_printf("unlock now\n");
+#endif
 }
 
 void LockstepScheduler::set_absolute_time(uint64_t time_us)
@@ -60,9 +69,13 @@ void LockstepScheduler::set_absolute_time(uint64_t time_us)
 	}
 
 	_time_us = time_us;
-
 	{
+#if not defined(__PX4_EVL4)
 		std::unique_lock<std::mutex> lock_timed_waits(_timed_waits_mutex);
+#else
+		int ret;
+		__Tcall_assert(ret, evl_lock_mutex(&_timed_waits_mutex));
+#endif
 		_setting_time = true;
 
 		TimedWait *timed_wait = _timed_waits;
@@ -108,6 +121,9 @@ void LockstepScheduler::set_absolute_time(uint64_t time_us)
 		}
 
 		_setting_time = false;
+#ifdef __PX4_EVL4
+		__Tcall_assert(ret, evl_unlock_mutex(&_timed_waits_mutex));
+#endif
 	}
 }
 
@@ -118,7 +134,8 @@ int LockstepScheduler::cond_timedwait(struct evl_event *cond, struct evl_mutex *
 	// longer. And using thread_local is more efficient than malloc.
 	static thread_local TimedWait timed_wait;
 	{
-		std::lock_guard<std::mutex> lock_timed_waits(_timed_waits_mutex);
+		int ret;
+		__Tcall_assert(ret, evl_lock_mutex(&_timed_waits_mutex));
 
 		// The time has already passed.
 		if (time_us <= _time_us) {
@@ -137,6 +154,7 @@ int LockstepScheduler::cond_timedwait(struct evl_event *cond, struct evl_mutex *
 			timed_wait.next = _timed_waits;
 			_timed_waits = &timed_wait;
 		}
+		__Tcall_assert(ret, evl_unlock_mutex(&_timed_waits_mutex));
 	}
 
 	int result = evl_wait_event(cond, lock);
@@ -160,8 +178,8 @@ int LockstepScheduler::cond_timedwait(struct evl_event *cond, struct evl_mutex *
 		// Note that this case does not happen too frequently, and thus can be
 		// a bit more expensive.
 		evl_unlock_mutex(lock);
-		_timed_waits_mutex.lock();
-		_timed_waits_mutex.unlock();
+		evl_lock_mutex(&_timed_waits_mutex);
+		evl_unlock_mutex(&_timed_waits_mutex);
 		evl_lock_mutex(lock);
 	}
 
@@ -228,22 +246,25 @@ int LockstepScheduler::cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *loc
 #ifdef __PX4_EVL4
 int LockstepScheduler::usleep_until(uint64_t time_us)
 {
-	struct evl_mutex lock;
-	struct evl_event cond;
+	static thread_local cond_wait_sync sync;
 	int ret;
-	__Tcall_assert(ret, evl_new_mutex(&lock, nullptr));
-	__Tcall_assert(ret, evl_new_event(&cond, nullptr));
+	if (!sync.initialized) {
+		__Tcall_assert(ret, evl_new_mutex(&sync.lock, nullptr));
+		__Tcall_assert(ret, evl_new_event(&sync.cond, nullptr));
+		sync.initialized = true;
+		printf("create mutex and cond here\n");
+	}
 
-	__Tcall_assert(ret, evl_lock_mutex(&lock));
+	__Tcall_assert(ret, evl_lock_mutex(&sync.lock));
 
-	int result = cond_timedwait(&cond, &lock, time_us);
+	int result = cond_timedwait(&sync.cond, &sync.lock, time_us);
 
 	if (result == ETIMEDOUT) {
 		// This is expected because we never notified to the condition.
 		result = 0;
 	}
 
-	__Tcall_assert(ret, evl_unlock_mutex(&lock));
+	__Tcall_assert(ret, evl_unlock_mutex(&sync.lock));
 
 	return result;
 }

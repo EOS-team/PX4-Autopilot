@@ -63,8 +63,13 @@ public:
 
 	// Singleton pattern
 	static uORBTest::UnitTest &instance();
+#if not defined(__PX4_EVL4)
 	~UnitTest() = default;
-
+#else
+	~UnitTest() {
+		px4_poll_destory(fds, 1);
+	}
+#endif
 	int test();
 	int latency_test(bool print);
 	int info();
@@ -79,8 +84,14 @@ public:
 	}
 
 private:
+#if not defined(__PX4_EVL4)
 	UnitTest() = default;
-
+#else
+	UnitTest() {
+		px4_poll_init(fds, 1);
+	}
+	px4_pollfd_struct_t fds[1];
+#endif
 	static int pubsubtest_threadEntry(int argc, char *argv[]);
 	int pubsublatency_main();
 

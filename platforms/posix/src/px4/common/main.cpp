@@ -122,40 +122,6 @@ static std::string file_basename(std::string const &pathname);
 static std::string pwd();
 static int change_directory(const std::string &directory);
 
-#ifdef __PX4_EVL4
-// sync_init flag is used to synchronize the initialization of the evl library
-static struct evl_flags sync_init = EVL_FLAGS_INITIALIZER("sync_init", EVL_CLOCK_MONOTONIC, 0, EVL_CLONE_PUBLIC);
-// Out-of-band thread entry for px4::init_once,
-void *init_once_trampoline(void *)
-{
-	// Attach and Set evl sched policy and prio
-	__attach_and_setsched(SCHED_FIFO, 99, "px4_init_once:%d", getpid());
-	px4::init_once();
-	PX4_INFO("px4::init_once() done");
-	evl_post_flags(&sync_init, 0x1);
-	return nullptr;
-}
-
-// Entry arg structure for run_startup_script
-struct run_startup_script_args {
-	std::string commands_file;
-	std::string absolute_binary_path;
-	int instance;
-	int ret;
-};
-
-//Out-of-band thread entry for run_startup_script
-void *run_startup_script_trampoline(void *arg)
-{
-	__attach_and_setsched(SCHED_FIFO, 99, "run_startup_script:%d", getpid());
-	struct run_startup_script_args *args = (struct run_startup_script_args *)arg;
-	args->ret = run_startup_script(args->commands_file, args->absolute_binary_path, args->instance);
-	PX4_INFO("run_startup_script() done");
-	evl_post_flags(&sync_init, 0x2);
-	return nullptr;
-}
-#endif
-
 #ifdef __PX4_SITL_MAIN_OVERRIDE
 int SITL_MAIN(int argc, char **argv);
 
@@ -395,7 +361,10 @@ int main(int argc, char **argv)
 		if (ret != PX4_OK) {
 			return ret;
 		}
+
 #ifdef __PX4_EVL4
+		// we just need weak thread here, because only a few init steps need
+		// evl services, and most of time thread is in-band.
 		evl_attach_self("/px4");
 #endif
 		px4::init_once();

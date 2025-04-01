@@ -42,7 +42,10 @@
 
 #include <iostream>
 #include <string>
-#if defined(__PX4_EVL4)
+
+#ifdef __PX4_EVL4
+#include <evl/sched.h>
+#define pthread_mutex_init evl_new_mutex
 #define pthread_mutex_lock evl_lock_mutex
 #define pthread_mutex_unlock evl_unlock_mutex
 #endif
@@ -56,12 +59,7 @@ GZBridge::GZBridge(const char *world, const char *name, const char *model,
 	_model_sim(model),
 	_model_pose(pose_str)
 {
-#if !defined(__PX4_EVL4)
 	pthread_mutex_init(&_node_mutex, nullptr);
-#else
-	int efd;
-	__Tcall_assert(efd, evl_new_mutex(&_node_mutex, nullptr));
-#endif
 
 	updateParams();
 }
@@ -145,7 +143,12 @@ int GZBridge::init()
 				// If Gazebo has not been called, wait 2 seconds and try again.
 				else {
 					PX4_WARN("Service call timed out as Gazebo has not been detected. Retrying...");
+#ifdef __PX4_EVL4
+					// usleep can not exceed 1000000 in evl_usleep, use system_sleep here.
+					system_sleep(2);
+#else
 					system_usleep(2000000);
+#endif
 				}
 			}
 		}
@@ -163,7 +166,11 @@ int GZBridge::init()
 			while (scene_created == false) {
 				if (!callSceneInfoMsgService(scene_info_service)) {
 					PX4_WARN("Service call timed out as Gazebo has not been detected. Retrying...");
+#ifdef __PX4_EVL4
+					system_sleep(2);
+#else
 					system_usleep(2000000);
+#endif
 
 				} else {
 					scene_created = true;
@@ -408,9 +415,10 @@ bool GZBridge::updateClock(const uint64_t tv_sec, const uint64_t tv_nsec)
 	struct timespec ts;
 	ts.tv_sec = tv_sec;
 	ts.tv_nsec = tv_nsec;
-
 	if (px4_clock_settime(CLOCK_MONOTONIC, &ts) == 0) {
+		// evl_eprintf("_world_time_us start store\n");
 		_world_time_us.store(ts_to_abstime(&ts));
+		// evl_eprintf("_world_time_us store.\n");
 		return true;
 	}
 
@@ -421,6 +429,13 @@ bool GZBridge::updateClock(const uint64_t tv_sec, const uint64_t tv_nsec)
 
 void GZBridge::clockCallback(const gz::msgs::Clock &clock)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	pthread_mutex_lock(&_node_mutex);
 
 	const uint64_t time_us = (clock.sim().sec() * 1000000) + (clock.sim().nsec() / 1000);
@@ -434,6 +449,13 @@ void GZBridge::clockCallback(const gz::msgs::Clock &clock)
 
 void GZBridge::barometerCallback(const gz::msgs::FluidPressure &air_pressure)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}
@@ -458,6 +480,13 @@ void GZBridge::barometerCallback(const gz::msgs::FluidPressure &air_pressure)
 
 void GZBridge::airspeedCallback(const gz::msgs::AirSpeed &air_speed)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}
@@ -484,6 +513,13 @@ void GZBridge::airspeedCallback(const gz::msgs::AirSpeed &air_speed)
 
 void GZBridge::imuCallback(const gz::msgs::IMU &imu)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}
@@ -549,6 +585,13 @@ void GZBridge::imuCallback(const gz::msgs::IMU &imu)
 
 void GZBridge::poseInfoCallback(const gz::msgs::Pose_V &pose)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}
@@ -666,6 +709,13 @@ void GZBridge::poseInfoCallback(const gz::msgs::Pose_V &pose)
 
 void GZBridge::odometryCallback(const gz::msgs::OdometryWithCovariance &odometry)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}
@@ -742,6 +792,13 @@ void GZBridge::odometryCallback(const gz::msgs::OdometryWithCovariance &odometry
 
 void GZBridge::navSatCallback(const gz::msgs::NavSat &nav_sat)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}
@@ -777,6 +834,13 @@ void GZBridge::navSatCallback(const gz::msgs::NavSat &nav_sat)
 }
 void GZBridge::laserScantoLidarSensorCallback(const gz::msgs::LaserScan &scan)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}
@@ -831,6 +895,13 @@ void GZBridge::laserScantoLidarSensorCallback(const gz::msgs::LaserScan &scan)
 
 void GZBridge::laserScanCallback(const gz::msgs::LaserScan &scan)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/gzbridge_callback"));
+	}
+#endif
 	static constexpr int SECTOR_SIZE_DEG = 5; // PX4 Collision Prevention uses 5 degree sectors
 
 	double angle_min_deg = scan.angle_min() * 180 / M_PI;
@@ -1093,5 +1164,16 @@ int GZBridge::print_usage(const char *reason)
 
 extern "C" __EXPORT int gz_bridge_main(int argc, char *argv[])
 {
+#ifdef __PX4_EVL4
+	// gz_bridge should be weak thread, it use inband service most of time
+	struct evl_sched_attrs attrs;
+	evl_get_schedattr(evl_get_self(), &attrs);
+	attrs.sched_policy = SCHED_WEAK;
+	attrs.sched_priority = 0;
+	// change name
+	evl_detach_self();
+	evl_attach_self(argv[0]);
+	evl_set_schedattr(evl_get_self(), &attrs);
+#endif
 	return GZBridge::main(argc, argv);
 }

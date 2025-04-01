@@ -22,10 +22,10 @@
 #include <drivers/drv_hrt.h>
 #include <math.h>
 
-#if defined(__PX4_EVL4)
+#ifdef __PX4_EVL4
+#define pthread_mutex_t struct evl_mutex
 #define pthread_mutex_lock evl_lock_mutex
 #define pthread_mutex_unlock evl_unlock_mutex
-#define pthread_mutex_t struct evl_mutex
 #endif
 
 using namespace time_literals;

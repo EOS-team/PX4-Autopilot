@@ -49,6 +49,10 @@
 #include "posix/cdev_platform.hpp"
 #endif
 
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#endif
+
 namespace cdev
 {
 

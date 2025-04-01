@@ -179,7 +179,9 @@ void Navigator::run()
 
 	/* rate-limit position subscription to 20 Hz / 50 ms */
 	orb_set_interval(_local_pos_sub, 50);
-
+#ifdef __PX4_EVL4
+	px4_poll_init(fds, 3);
+#endif
 	while (!should_exit()) {
 
 		/* wait for up to 1000ms for data */
@@ -908,6 +910,9 @@ void Navigator::run()
 
 		perf_end(_loop_perf);
 	}
+#ifdef __PX4_EVL4
+	px4_poll_destory(fds, 3);
+#endif
 }
 
 void Navigator::geofence_breach_check()

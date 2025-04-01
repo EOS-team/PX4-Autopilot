@@ -105,9 +105,6 @@ void TemperatureCalibration::task_main()
 	// subscribe to all gyro instances
 	int gyro_sub[SENSOR_COUNT_MAX] {-1, -1, -1};
 	px4_pollfd_struct_t fds[SENSOR_COUNT_MAX] {};
-#ifdef __PX4_EVL4
-	px4_sem_t sem[SENSOR_COUNT_MAX];
-#endif
 	unsigned num_gyro = orb_group_count(ORB_ID(sensor_gyro));
 
 	if (num_gyro > SENSOR_COUNT_MAX) {
@@ -118,11 +115,6 @@ void TemperatureCalibration::task_main()
 		gyro_sub[i] = orb_subscribe_multi(ORB_ID(sensor_gyro), i);
 		fds[i].fd = gyro_sub[i];
 		fds[i].events = POLLIN;
-#ifdef __PX4_EVL4
-		px4_sem_init(&sem[i], 0, 0);
-		px4_sem_setprotocol(&sem[i], SEM_PRIO_NONE);
-		fds[i].sem = &sem[i];
-#endif
 	}
 
 	int32_t min_temp_rise = 24;
@@ -198,7 +190,9 @@ void TemperatureCalibration::task_main()
 	int leds_completed = 0;
 
 	bool abort_calibration = false;
-
+#ifdef __PX4_EVL4
+	px4_poll_init(fds, num_gyro);
+#endif
 	while (!_force_task_exit) {
 		/* we poll on the gyro(s), since this is the sensor with the highest update rate.
 		 * Each individual sensor will then check on its own if there's new data.
@@ -272,7 +266,9 @@ void TemperatureCalibration::task_main()
 			next_progress_output = now + 1e6;
 		}
 	}
-
+#ifdef __PX4_EVL4
+	px4_poll_destory(fds, num_gyro);
+#endif
 	if (abort_calibration) {
 		led_control.color = led_control_s::COLOR_RED;
 

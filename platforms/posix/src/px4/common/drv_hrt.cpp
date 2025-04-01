@@ -61,6 +61,10 @@
 static LockstepScheduler lockstep_scheduler {true};
 #endif
 
+#ifdef __PX4_EVL4
+#include <evl/proxy.h>
+#endif
+
 // Intervals in usec
 static constexpr unsigned HRT_INTERVAL_MIN = 50;
 static constexpr unsigned HRT_INTERVAL_MAX = 50000000;
@@ -476,18 +480,28 @@ int px4_clock_gettime(clockid_t clk_id, struct timespec *tp)
 	}
 
 #endif // defined(ENABLE_LOCKSTEP_SCHEDULER)
+#ifdef __PX4_EVL4
+	return system_clock_gettime(-clk_id, tp);
+#else
 	return system_clock_gettime(clk_id, tp);
+#endif
 
 }
 
 #if defined(ENABLE_LOCKSTEP_SCHEDULER)
 int px4_clock_settime(clockid_t clk_id, const struct timespec *ts)
 {
+	// evl_printf("px4_clock_settime called\n");
 	if (clk_id == CLOCK_REALTIME) {
+#ifdef __PX4_EVL4
+		return system_clock_settime(EVL_CLOCK_REALTIME, ts);
+#else
 		return system_clock_settime(clk_id, ts);
+#endif
 
 	} else {
 		lockstep_scheduler.set_absolute_time(ts_to_abstime(ts));
+		// evl_printf("lockstep_scheduler set_absolute_time finished\n");
 		return 0;
 	}
 }
