@@ -54,6 +54,11 @@
 
 #include <px4_platform_common/log.h>
 
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#include <evl/thread.h>
+#endif
+
 #include "pxh.h"
 #include "server.h"
 
@@ -179,7 +184,6 @@ Server::_server_main()
 			} else {
 				// Set stream to line buffered.
 				setvbuf(thread_stdout, nullptr, _IOLBF, BUFSIZ);
-
 				// Start a new thread to handle the client.
 				pthread_t *thread = &_fd_to_thread[client];
 				ret = pthread_create(thread, nullptr, Server::_handle_client, thread_stdout);
@@ -279,6 +283,9 @@ void
 		(void)pthread_setspecific(_instance->_key, (void *)thread_data_ptr);
 	}
 
+#ifdef __PX4_EVL4
+	__attach_and_setsched(SCHED_FIFO, 98, cmd.c_str());
+#endif
 	// Run the actual command.
 	int retval = Pxh::process_line(cmd, true);
 

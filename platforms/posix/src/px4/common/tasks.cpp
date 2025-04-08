@@ -59,10 +59,25 @@
 #include <px4_platform_common/posix.h>
 #include <systemlib/err.h>
 
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#include <evl/thread.h>
+#include <evl/evl.h>
+#include <evl/mutex.h>
+#include <signal.h>
+#define pthread_mutex_lock evl_lock_mutex
+#define pthread_mutex_unlock evl_unlock_mutex
+#endif
+
 #define PX4_MAX_TASKS 50
 
+//FIXME:
 pthread_t _shell_task_id = 0;
+#ifdef __PX4_EVL4
+struct evl_mutex task_mutex = EVL_MUTEX_INITIALIZER("/task_mutex", EVL_CLOCK_MONOTONIC, 0, EVL_MUTEX_NORMAL);
+#else
 pthread_mutex_t task_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 struct task_entry {
 	pthread_t pid{0};
@@ -84,6 +99,7 @@ static void *entry_adapter(void *ptr)
 {
 	pthdata_t *data = (pthdata_t *) ptr;
 
+#ifndef __PX4_EVL4
 	// set the threads name
 #ifdef __PX4_DARWIN
 	int rv = pthread_setname_np(data->name);
@@ -94,6 +110,28 @@ static void *entry_adapter(void *ptr)
 	if (rv) {
 		PX4_ERR("px4_task_spawn_cmd: failed to set name of thread %d %d\n", rv, errno);
 	}
+
+#endif // __PX4_EVL4
+
+#ifdef __PX4_EVL4
+	/* We do not need to set scheduler policy and priority here, because they are already
+	 * set in px4_task_spawn_cmd.
+	*/
+	int efd = -1;
+	/* Generate a unique name for the thread by appending a number to the name. */
+	int limit = 50;
+	int index = 0;
+
+	while (efd < 0 && index < limit) {
+		efd = evl_attach_thread(EVL_CLONE_PUBLIC, "%s:%d", data->name, index);
+		index ++;
+	}
+
+	if (efd < 0) {
+		evl_eprintf("%s:%d: FAILED: %s\n", __FILE__, __LINE__, strerror(-efd));
+		exit(efd);
+	}
+#endif
 
 	data->entry(data->argc, data->argv);
 	free(ptr);
@@ -329,7 +367,9 @@ void px4_task_exit(int ret)
 	}
 
 	pthread_mutex_unlock(&task_mutex);
-
+#ifdef __PX4_EVL4
+	evl_detach_self();
+#endif
 	pthread_exit((void *)(unsigned long)ret);
 }
 
@@ -424,6 +464,7 @@ const char *px4_get_taskname()
 
 int px4_prctl(int option, const char *arg2, px4_task_t pid)
 {
+#if !defined(__PX4_EVL4)
 	int rv = -1;
 
 	switch (option) {
@@ -442,4 +483,8 @@ int px4_prctl(int option, const char *arg2, px4_task_t pid)
 	}
 
 	return rv;
+#else
+	// We can not change the name of a thread attached in evl4
+	return 0;
+#endif
 }

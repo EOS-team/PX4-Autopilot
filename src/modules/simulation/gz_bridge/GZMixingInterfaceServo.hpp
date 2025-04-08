@@ -37,7 +37,11 @@
 
 #include <gz/transport.hh>
 #include <px4_platform_common/module_params.h>
-
+#ifdef __PX4_EVL4
+#define pthread_mutex_t struct evl_mutex
+#define pthread_mutex_lock evl_lock_mutex
+#define pthread_mutex_unlock evl_unlock_mutex
+#endif
 // GZBridge mixing class for Servos.
 // It is separate from GZBridge to have separate WorkItems and therefore allowing independent scheduling
 // All work items are expected to run on the same work queue.

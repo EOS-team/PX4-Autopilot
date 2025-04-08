@@ -72,13 +72,17 @@ InputRC::UpdateResult InputRC::update(unsigned int timeout_ms, ControlData &cont
 	px4_pollfd_struct_t polls[1];
 	polls[0].fd = 		_manual_control_setpoint_sub;
 	polls[0].events = 	POLLIN;
-
+#ifdef __PX4_EVL4
+	px4_poll_init(polls, 1);
+#endif
 	int ret = px4_poll(polls, 1, timeout_ms);
 
 	if (ret < 0) {
 		return UpdateResult::NoUpdate;
 	}
-
+#ifdef __PX4_EVL4
+	px4_poll_destory(polls, 1);
+#endif
 	if (ret == 0) {
 		// If we have been active before, we stay active, unless someone steals
 		// the control away.

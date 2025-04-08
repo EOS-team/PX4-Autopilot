@@ -775,7 +775,7 @@ static int param_verify(int fd);
 int param_save_default(bool blocking)
 {
 	PX4_DEBUG("param_save_default");
-
+	printf("param_save_default\n");
 	// take the file lock
 	if (blocking) {
 		pthread_mutex_lock(&file_mutex);
@@ -801,6 +801,7 @@ int param_save_default(bool blocking)
 
 		for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 			// write parameters to file
+			printf("call open here");
 			int fd = ::open(filename, O_WRONLY | O_CREAT | O_TRUNC, PX4_O_MODE_666);
 
 			if (fd > -1) {
@@ -808,6 +809,7 @@ int param_save_default(bool blocking)
 				res = param_export_internal(fd, nullptr);
 				perf_end(param_export_perf);
 				::close(fd);
+				printf("close fd here\n");
 
 				if (res == PX4_OK) {
 					// reopen file to verify

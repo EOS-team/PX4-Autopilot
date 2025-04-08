@@ -988,6 +988,10 @@ void SimulatorMavlink::send_mavlink_message(const mavlink_message_t &aMsg)
 
 void *SimulatorMavlink::sending_trampoline(void * /*unused*/)
 {
+#ifdef __PX4_EVL4
+	int ret;
+	__Tcall_assert(ret, evl_attach_self("simulatorMavlink"));
+#endif
 	_instance->send();
 	return nullptr;
 }
@@ -996,7 +1000,7 @@ void SimulatorMavlink::send()
 {
 #ifdef __PX4_DARWIN
 	pthread_setname_np("sim_send");
-#else
+#elif !defined(__PX4_EVL4)
 	pthread_setname_np(pthread_self(), "sim_send");
 #endif
 
@@ -1013,7 +1017,9 @@ void SimulatorMavlink::send()
 	px4_pollfd_struct_t fds_actuator_outputs[1] = {};
 	fds_actuator_outputs[0].fd = _actuator_outputs_sub;
 	fds_actuator_outputs[0].events = POLLIN;
-
+#ifdef __PX4_EVL4
+	px4_poll_init(fds_actuator_outputs, 1);
+#endif
 	while (true) {
 
 		// Wait for up to 100ms for data.
@@ -1042,7 +1048,9 @@ void SimulatorMavlink::send()
 			send_controls();
 		}
 	}
-
+#ifdef __PX4_EVL4
+	px4_poll_destory(fds_actuator_outputs, 1);
+#endif
 	orb_unsubscribe(_actuator_outputs_sub);
 }
 
@@ -1071,7 +1079,7 @@ void SimulatorMavlink::run()
 {
 #ifdef __PX4_DARWIN
 	pthread_setname_np("sim_rcv");
-#else
+#elif !defined(__PX4_EVL4)
 	pthread_setname_np(pthread_self(), "sim_rcv");
 #endif
 

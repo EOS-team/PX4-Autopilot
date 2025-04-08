@@ -99,7 +99,11 @@ private:
 	int _next{0}; ///< next element to use
 	int _size{0};
 
+#ifdef __PX4_EVL4
+	mutable struct evl_mutex _mutex;
+#else
 	mutable pthread_mutex_t _mutex;
+#endif
 };
 
 /**

@@ -190,7 +190,9 @@ void TemperatureCalibration::task_main()
 	int leds_completed = 0;
 
 	bool abort_calibration = false;
-
+#ifdef __PX4_EVL4
+	px4_poll_init(fds, num_gyro);
+#endif
 	while (!_force_task_exit) {
 		/* we poll on the gyro(s), since this is the sensor with the highest update rate.
 		 * Each individual sensor will then check on its own if there's new data.
@@ -264,7 +266,9 @@ void TemperatureCalibration::task_main()
 			next_progress_output = now + 1e6;
 		}
 	}
-
+#ifdef __PX4_EVL4
+	px4_poll_destory(fds, num_gyro);
+#endif
 	if (abort_calibration) {
 		led_control.color = led_control_s::COLOR_RED;
 

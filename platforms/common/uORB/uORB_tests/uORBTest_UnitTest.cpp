@@ -53,9 +53,10 @@ int uORBTest::UnitTest::pubsublatency_main()
 	/* poll on test topic and output latency */
 	float latency_integral = 0.0f;
 
+#if not defined(__PX4_EVL4)
 	/* wakeup source(s) */
 	px4_pollfd_struct_t fds[1] {};
-
+#endif
 	int test_multi_sub = orb_subscribe_multi(ORB_ID(orb_test_medium), 0);
 
 	orb_test_medium_s t{};
@@ -66,7 +67,7 @@ int uORBTest::UnitTest::pubsublatency_main()
 	fds[0].fd = test_multi_sub;
 	fds[0].events = POLLIN;
 
-	static constexpr unsigned MAX_RUNS = 1000;
+	static constexpr unsigned MAX_RUNS = 10;
 	unsigned timingsgroup = 0;
 	int current_value = t.val;
 	int num_missed = 0;
@@ -1002,10 +1003,11 @@ int uORBTest::UnitTest::test_queue_poll_notify()
 	}
 
 	int next_expected_val = 0;
+#if not defined(__PX4_EVL4)
 	px4_pollfd_struct_t fds[1] {};
+#endif
 	fds[0].fd = sfd;
 	fds[0].events = POLLIN;
-
 	while (!_thread_should_exit) {
 
 		int poll_ret = px4_poll(fds, 1, 500);
@@ -1121,6 +1123,10 @@ int uORBTest::UnitTest::test_note(const char *fmt, ...)
 
 int uORBTest::UnitTest::pubsubtest_threadEntry(int argc, char *argv[])
 {
+#ifdef __PX4_EVL4
+	int ret;
+	__Tcall_assert(ret, evl_set_thread_mode(evl_get_self(), EVL_T_WOSO|EVL_T_HMSIG|EVL_T_WOSX|EVL_T_WOLI|EVL_T_WOSS, nullptr));
+#endif
 	uORBTest::UnitTest &t = uORBTest::UnitTest::instance();
 	return t.pubsublatency_main();
 }

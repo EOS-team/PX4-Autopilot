@@ -651,6 +651,9 @@ void UxrceddsClient::run()
 		resetConnectivityCounters();
 
 		_subs->init();
+#ifdef __PX4_EVL4
+		px4_poll_init(_subs->fds, (sizeof(_subs->fds) / sizeof(_subs->fds[0])));
+#endif
 		_subs_initialized = true;
 
 		while (!should_exit() && _connected) {
@@ -730,7 +733,9 @@ void UxrceddsClient::run()
 
 			perf_end(_loop_perf);
 		}
-
+#ifdef __PX4_EVL4
+		px4_poll_destory(_subs->fds, (sizeof(_subs->fds) / sizeof(_subs->fds[0])));
+#endif
 		deleteSession(&session);
 	}
 }

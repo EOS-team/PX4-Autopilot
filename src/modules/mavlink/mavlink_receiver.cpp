@@ -3494,6 +3494,10 @@ MavlinkReceiver::updateParams()
 
 void *MavlinkReceiver::start_trampoline(void *context)
 {
+#ifdef __PX4_EVL4
+	int ret;
+	__Tcall_assert(ret, evl_attach_self("mavlinkReceiver"));
+#endif
 	MavlinkReceiver *self = reinterpret_cast<MavlinkReceiver *>(context);
 	self->run();
 	return nullptr;

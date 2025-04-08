@@ -7,6 +7,18 @@
 #include <functional>
 #include <chrono>
 
+#ifdef __PX4_EVL4
+#define pthread_cond_t struct evl_event
+#define pthread_mutex_t struct evl_mutex
+#define pthread_mutex_init evl_new_mutex
+#define pthread_cond_init evl_new_event
+#define pthread_cond_destroy evl_close_event
+#define pthread_cond_broadcast evl_broadcast_event
+#define pthread_mutex_lock evl_lock_mutex
+#define pthread_mutex_unlock evl_unlock_mutex
+#define pthread_mutex_destroy evl_close_mutex
+#endif
+
 class TestThread
 {
 public:

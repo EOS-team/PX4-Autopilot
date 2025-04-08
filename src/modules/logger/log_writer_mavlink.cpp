@@ -148,7 +148,10 @@ int LogWriterMavlink::publish_message()
 		const int timeout_ms = ulog_stream_ack_s::ACK_TIMEOUT * ulog_stream_ack_s::ACK_MAX_TRIES;
 
 		hrt_abstime started = hrt_absolute_time();
-
+#ifdef __PX4_EVL4
+		// Initialize the poll structure
+		px4_poll_init(fds, 1);
+#endif
 		do {
 			int ret = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), timeout_ms);
 
@@ -168,7 +171,9 @@ int LogWriterMavlink::publish_message()
 				break;
 			}
 		} while (!got_ack && hrt_elapsed_time(&started) / 1000 < timeout_ms);
-
+#ifdef __PX4_EVL4
+		px4_poll_destory(fds, 1);
+#endif
 		if (!got_ack) {
 			PX4_ERR("Ack timeout. Stopping mavlink log");
 			stop_log();

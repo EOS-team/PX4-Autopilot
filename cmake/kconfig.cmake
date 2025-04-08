@@ -390,6 +390,10 @@ if(EXISTS ${BOARD_DEFCONFIG})
 		add_definitions( "-D__PX4_LINUX" )
 	endif()
 
+	if(EVL4_TARGET)
+		add_definitions( "-D__PX4_EVL4" )
+	endif()
+
 	if(LOCKSTEP)
 		set(ENABLE_LOCKSTEP_SCHEDULER yes)
 	endif()

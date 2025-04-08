@@ -61,6 +61,10 @@
 static LockstepScheduler lockstep_scheduler {true};
 #endif
 
+#ifdef __PX4_EVL4
+#include <evl/proxy.h>
+#endif
+
 // Intervals in usec
 static constexpr unsigned HRT_INTERVAL_MIN = 50;
 static constexpr unsigned HRT_INTERVAL_MAX = 50000000;
@@ -476,18 +480,28 @@ int px4_clock_gettime(clockid_t clk_id, struct timespec *tp)
 	}
 
 #endif // defined(ENABLE_LOCKSTEP_SCHEDULER)
+#ifdef __PX4_EVL4
+	return system_clock_gettime(-clk_id, tp);
+#else
 	return system_clock_gettime(clk_id, tp);
+#endif
 
 }
 
 #if defined(ENABLE_LOCKSTEP_SCHEDULER)
 int px4_clock_settime(clockid_t clk_id, const struct timespec *ts)
 {
+	// evl_printf("px4_clock_settime called\n");
 	if (clk_id == CLOCK_REALTIME) {
+#ifdef __PX4_EVL4
+		return system_clock_settime(EVL_CLOCK_REALTIME, ts);
+#else
 		return system_clock_settime(clk_id, ts);
+#endif
 
 	} else {
 		lockstep_scheduler.set_absolute_time(ts_to_abstime(ts));
+		// evl_printf("lockstep_scheduler set_absolute_time finished\n");
 		return 0;
 	}
 }
@@ -516,6 +530,18 @@ unsigned int px4_sleep(unsigned int seconds)
 	return lockstep_scheduler.usleep_until(time_finished);
 }
 
+#if defined(__PX4_EVL4)
+
+int px4_pthread_cond_timedwait(struct evl_event *cond,
+			       struct evl_mutex *mutex,
+			       const struct timespec *ts)
+{
+	const uint64_t scheduled = ts_to_abstime(ts);
+	return lockstep_scheduler.cond_timedwait(cond, mutex, scheduled);
+}
+
+#else
+
 int px4_pthread_cond_timedwait(pthread_cond_t *cond,
 			       pthread_mutex_t *mutex,
 			       const struct timespec *ts)
@@ -523,6 +549,8 @@ int px4_pthread_cond_timedwait(pthread_cond_t *cond,
 	const uint64_t scheduled = ts_to_abstime(ts);
 	return lockstep_scheduler.cond_timedwait(cond, mutex, scheduled);
 }
+
+#endif
 
 int px4_lockstep_register_component()
 {

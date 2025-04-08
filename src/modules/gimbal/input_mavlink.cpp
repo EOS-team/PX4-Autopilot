@@ -88,12 +88,17 @@ InputMavlinkROI::update(unsigned int timeout_ms, ControlData &control_data, bool
 	polls[0].events = POLLIN;
 	polls[1].fd = _position_setpoint_triplet_sub;
 	polls[1].events = POLLIN;
-
+#ifdef __PX4_EVL4
+	px4_poll_init(polls, num_poll);
+#endif
 	int ret = px4_poll(polls, num_poll, timeout_ms);
 
 	if (ret <= 0) {
 		return UpdateResult::NoUpdate;
 	}
+#ifdef __PX4_EVL4
+	px4_poll_destory(polls, num_poll);
+#endif
 
 	if (polls[0].revents & POLLIN) {
 		vehicle_roi_s vehicle_roi;
@@ -213,7 +218,9 @@ InputMavlinkCmdMount::update(unsigned int timeout_ms, ControlData &control_data,
 
 	bool exit_loop = false;
 	UpdateResult update_result = UpdateResult::NoUpdate;
-
+#ifdef __PX4_EVL4
+	px4_poll_init(polls, num_poll);
+#endif
 	while (!exit_loop && poll_timeout >= 0) {
 
 		const int ret = px4_poll(polls, num_poll, poll_timeout);
@@ -239,7 +246,9 @@ InputMavlinkCmdMount::update(unsigned int timeout_ms, ControlData &control_data,
 		// Keep going reading commands until timeout is up.
 		poll_timeout = timeout_ms - (hrt_absolute_time() - poll_start) / 1000;
 	}
-
+#ifdef __PX4_EVL4
+	px4_poll_destory(polls, num_poll);
+#endif
 	return update_result;
 }
 
@@ -547,7 +556,9 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 
 	bool exit_loop = false;
 	UpdateResult update_result = UpdateResult::NoUpdate;
-
+#ifdef __PX4_EVL4
+	px4_poll_init(polls, num_poll);
+#endif
 	while (!exit_loop && poll_timeout >= 0) {
 
 		const int ret = px4_poll(polls, num_poll, poll_timeout);
@@ -609,7 +620,9 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 
 		poll_timeout = timeout_ms - (hrt_absolute_time() - poll_start) / 1000;
 	}
-
+#ifdef __PX4_EVL4
+	px4_poll_destory(polls, num_poll);
+#endif
 	_stream_gimbal_manager_status(control_data);
 
 	if (_last_device_compid != control_data.device_compid) {

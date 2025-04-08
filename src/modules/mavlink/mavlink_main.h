@@ -646,11 +646,20 @@ private:
 
 	ping_statistics_s	_ping_stats {};
 
-	pthread_mutex_t		_message_buffer_mutex{};
-	VariableLengthRingbuffer _message_buffer{};
+#ifdef __PX4_EVL4
+	struct evl_mutex	_message_buffer_mutex {};
+#else
+	pthread_mutex_t		_message_buffer_mutex {};
+#endif
+	VariableLengthRingbuffer _message_buffer {};
 
+#ifdef __PX4_EVL4
+	struct evl_mutex	_send_mutex {};
+	struct evl_mutex	_radio_status_mutex {};
+#else
 	pthread_mutex_t		_send_mutex {};
 	pthread_mutex_t         _radio_status_mutex {};
+#endif
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::MAV_SYS_ID>) _param_mav_sys_id,

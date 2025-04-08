@@ -350,7 +350,11 @@ void uORB::DeviceMaster::showTop(char **topic_filter, int num_filters)
 			}
 
 		} else {
+#ifdef __PX4_EVL4
+			px4_sleep(2);
+#else
 			px4_usleep(2000000); // 2 seconds
+#endif
 		}
 
 #endif

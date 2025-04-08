@@ -43,16 +43,35 @@
 
 #include "lockstep_components.h"
 
+#if defined(__PX4_EVL4)
+#include <evl/evl.h>
+#include <evl/mutex.h>
+#include <px4_platform_common/evl_helper.h>
+#endif
+
 class LockstepScheduler
 {
 public:
-	LockstepScheduler(bool no_cleanup_on_destroy = false) : _components(no_cleanup_on_destroy) {}
+	LockstepScheduler(bool no_cleanup_on_destroy = false) : _components(no_cleanup_on_destroy) {
+#ifdef __PX4_EVL4
+		int ret;
+		if (evl_get_self() == -EPERM) {
+			__Tcall_assert(ret, evl_attach_self("/lockstep"));
+		}
+		__Tcall_assert(ret, evl_new_mutex(&_timed_waits_mutex, nullptr));
+#endif
+	}
 	~LockstepScheduler();
 
 	void set_absolute_time(uint64_t time_us);
 	inline uint64_t get_absolute_time() const { return _time_us; }
+#if defined(__PX4_EVL4)
+	int cond_timedwait(struct evl_event *cond, struct evl_mutex *lock, uint64_t time_us);
+#else
 	int cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *lock, uint64_t time_us);
+#endif
 	int usleep_until(uint64_t timed_us);
+
 
 	LockstepComponents &components() { return _components; }
 
@@ -69,7 +88,11 @@ private:
 				// This is really only a work-around for non-proper thread stopping. Note that we also assume,
 				// that we can still access the mutex.
 				if (passed_lock) {
+#if defined(__PX4_EVL4)
+					evl_unlock_mutex(passed_lock);
+#else
 					pthread_mutex_unlock(passed_lock);
+#endif
 				}
 
 				done = true;
@@ -83,9 +106,14 @@ private:
 			}
 		}
 
-		pthread_cond_t *passed_cond{nullptr};
+#if defined(__PX4_EVL4)
+		struct evl_event *passed_cond {nullptr};
+		struct evl_mutex *passed_lock {nullptr};
+#else
+		pthread_cond_t *passed_cond {nullptr};
 		pthread_mutex_t *passed_lock{nullptr};
-		uint64_t time_us{0};
+#endif
+		uint64_t time_us {0};
 		bool timeout{false};
 		std::atomic<bool> done{false};
 		std::atomic<bool> removed{true};
@@ -96,8 +124,16 @@ private:
 	LockstepComponents _components;
 
 	std::atomic<uint64_t> _time_us{0};
-
 	TimedWait *_timed_waits{nullptr}; ///< head of linked list
+#if not defined(__PX4_EVL4)
 	std::mutex _timed_waits_mutex;
+#else
+	struct evl_mutex _timed_waits_mutex;
+	struct cond_wait_sync {
+		struct evl_mutex lock;
+		struct evl_event cond;
+		bool initialized{false};
+	};
+#endif
 	std::atomic<bool> _setting_time{false}; ///< true if set_absolute_time() is currently being executed
 };

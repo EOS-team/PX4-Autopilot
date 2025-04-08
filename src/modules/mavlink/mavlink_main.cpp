@@ -60,6 +60,11 @@
 #include "mavlink_receiver.h"
 #include "mavlink_main.h"
 
+#ifdef __PX4_EVL4
+#include <evl/mutex.h>
+#include <evl/event.h>
+#endif
+
 // Guard against MAVLink misconfiguration
 #ifndef MAVLINK_CRC_EXTRA
 #error MAVLINK_CRC_EXTRA has to be defined on PX4 systems
@@ -80,8 +85,15 @@
 #define MAX_DATA_RATE                  10000000        ///< max data rate in bytes/s
 #define MAIN_LOOP_DELAY                10000           ///< 100 Hz @ 1000 bytes/s data rate
 
+#if defined(__PX4_EVL4)
+static struct evl_mutex mavlink_module_mutex = EVL_MUTEX_INITIALIZER("/mavlink_module_mutex", EVL_CLOCK_MONOTONIC, 0,
+		EVL_MUTEX_NORMAL);
+static struct evl_mutex mavlink_event_buffer_mutex = EVL_MUTEX_INITIALIZER("/mavlink_module_buffer_mutex",
+		EVL_CLOCK_MONOTONIC, 0, EVL_MUTEX_NORMAL);
+#else
 static pthread_mutex_t mavlink_module_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t mavlink_event_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 events::EventBuffer *Mavlink::_event_buffer = nullptr;
 
 Mavlink *mavlink_module_instances[MAVLINK_COMM_NUM_BUFFERS] {};
@@ -347,7 +359,12 @@ Mavlink::destroy_all_instances()
 	while (iterations < 1000) {
 		int running = 0;
 
+#ifdef __PX4_EVL4
+		int eret = 0;
+		__Tcall_assert(eret, evl_lock_mutex(&mavlink_module_mutex));
+#else
 		pthread_mutex_lock(&mavlink_module_mutex);
+#endif
 
 		for (Mavlink *inst_to_del : mavlink_module_instances) {
 			if (inst_to_del != nullptr) {
@@ -360,7 +377,11 @@ Mavlink::destroy_all_instances()
 			}
 		}
 
+#ifdef __PX4_EVL4
+		__Tcall_assert(eret, evl_unlock_mutex(&mavlink_module_mutex));
+#else
 		pthread_mutex_unlock(&mavlink_module_mutex);
+#endif
 
 		if (running == 0) {
 			break;
@@ -737,7 +758,12 @@ Mavlink::get_free_tx_buf()
 
 void Mavlink::send_start(int length)
 {
+#ifdef __PX4_EVL4
+	int eret = 0;
+	__Tcall_assert(eret, evl_lock_mutex(&_send_mutex));
+#else
 	pthread_mutex_lock(&_send_mutex);
+#endif
 	_last_write_try_time = hrt_absolute_time();
 
 	// check if there is space in the buffer
@@ -758,7 +784,12 @@ void Mavlink::send_start(int length)
 void Mavlink::send_finish()
 {
 	if (_tx_buffer_low || (_buf_fill == 0)) {
+#ifdef __PX4_EVL4
+		int eret = 0;
+		__Tcall_assert(eret, evl_unlock_mutex(&_send_mutex));
+#else
 		pthread_mutex_unlock(&_send_mutex);
+#endif
 		return;
 	}
 
@@ -819,8 +850,11 @@ void Mavlink::send_finish()
 	}
 
 	_buf_fill = 0;
-
+#ifdef __PX4_EVL4
+	__Tcall_assert(ret, evl_unlock_mutex(&_send_mutex));
+#else
 	pthread_mutex_unlock(&_send_mutex);
+#endif // __PX4_EVL4
 }
 
 void Mavlink::send_bytes(const uint8_t *buf, unsigned packet_len)
@@ -1322,7 +1356,12 @@ Mavlink::update_rate_mult()
 	float hardware_mult = 1.0f;
 	bool log_radio_timeout = false;
 
+#ifdef __PX4_EVL4
+	int eret = 0;
+	__Tcall_assert(eret, evl_lock_mutex(&_radio_status_mutex));
+#else
 	pthread_mutex_lock(&_radio_status_mutex);
+#endif
 
 	// scale down if we have a TX err rate suggesting link congestion
 	if ((_tstatus.tx_error_rate_avg > 0.f) && !_radio_status_critical) {
@@ -1344,7 +1383,11 @@ Mavlink::update_rate_mult()
 		hardware_mult *= _radio_status_mult;
 	}
 
+#ifdef __PX4_EVL4
+	__Tcall_assert(eret, evl_unlock_mutex(&_radio_status_mutex));
+#else
 	pthread_mutex_unlock(&_radio_status_mutex);
+#endif
 
 	if (log_radio_timeout) {
 		PX4_ERR("instance %d: RADIO_STATUS timeout", _instance_id);
@@ -1360,7 +1403,13 @@ Mavlink::update_rate_mult()
 void
 Mavlink::update_radio_status(const radio_status_s &radio_status)
 {
+#ifdef __PX4_EVL4
+	int eret = 0;
+	__Tcall_assert(eret, evl_lock_mutex(&_radio_status_mutex));
+#else
 	pthread_mutex_lock(&_radio_status_mutex);
+#endif
+
 	_rstatus = radio_status;
 	_radio_status_available = true;
 
@@ -1386,7 +1435,11 @@ Mavlink::update_radio_status(const radio_status_s &radio_status)
 		_radio_status_mult = math::constrain(_radio_status_mult, 0.01f, 1.0f);
 	}
 
+#ifdef __PX4_EVL4
+	__Tcall_assert(eret, evl_unlock_mutex(&_radio_status_mutex));
+#else
 	pthread_mutex_unlock(&_radio_status_mutex);
+#endif
 }
 
 int
@@ -2175,19 +2228,28 @@ Mavlink::task_main(int argc, char *argv[])
 			return PX4_ERROR;
 		}
 
+#ifndef __PX4_EVL4
 		// set thread name
 		char thread_name[13];
 		snprintf(thread_name, sizeof(thread_name), "mavlink_if%d", get_instance_id());
 		px4_prctl(PR_SET_NAME, thread_name, px4_getpid());
+#endif
 
 	} else {
 		PX4_ERR("no instances available");
 		return PX4_ERROR;
 	}
 
+#ifdef __PX4_EVL4
+	int eret;
+	__Tcall_assert(eret, evl_new_mutex(&_message_buffer_mutex, nullptr));
+	__Tcall_assert(eret, evl_new_mutex(&_send_mutex, nullptr));
+	__Tcall_assert(eret, evl_new_mutex(&_radio_status_mutex, nullptr));
+#else
 	pthread_mutex_init(&_message_buffer_mutex, nullptr);
 	pthread_mutex_init(&_send_mutex, nullptr);
 	pthread_mutex_init(&_radio_status_mutex, nullptr);
+#endif
 
 	/* if we are passing on mavlink messages, we need to prepare a buffer for this instance */
 	if (get_forwarding_on()) {
@@ -2470,9 +2532,15 @@ Mavlink::task_main(int argc, char *argv[])
 		_mavlink_ulog = nullptr;
 	}
 
+#ifdef __PX4_EVL4
+	evl_close_mutex(&_send_mutex);
+	evl_close_mutex(&_radio_status_mutex);
+	evl_close_mutex(&_message_buffer_mutex);
+#else
 	pthread_mutex_destroy(&_send_mutex);
 	pthread_mutex_destroy(&_radio_status_mutex);
 	pthread_mutex_destroy(&_message_buffer_mutex);
+#endif
 
 	PX4_INFO("exiting channel %i", (int)_channel);
 

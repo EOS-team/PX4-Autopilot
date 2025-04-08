@@ -64,11 +64,13 @@ int px4_platform_init(void)
 
 	param_init();
 #else
+	// FIXME:
 	param_init();
 
 	uorb_start();
 #endif
 
+	// FIXME:
 	px4_log_initialize();
 
 	return PX4_OK;

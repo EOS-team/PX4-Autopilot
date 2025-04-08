@@ -102,6 +102,13 @@ void GZMixingInterfaceWheel::Run()
 
 void GZMixingInterfaceWheel::wheelSpeedCallback(const gz::msgs::Actuators &actuators)
 {
+#ifdef __PX4_EVL4
+	if (evl_get_self() == -EPERM ) {
+		// not attach yet, attach now
+		int ret;
+		__Tcall_assert(ret, evl_attach_self("/Wheel_callback"));
+	}
+#endif
 	if (hrt_absolute_time() == 0) {
 		return;
 	}

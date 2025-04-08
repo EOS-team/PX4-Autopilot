@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015 Mark Charlebois. All rights reserved.
+ *   Copyright (c) 2025 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,70 +30,44 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
+#pragma once
 
-/**
- * @file px4_posix_impl.cpp
- *
- * PX4 Middleware Wrapper Linux Implementation
- */
+#include <string.h>
+#include <stdlib.h>
+#include <evl/proxy.h>
+#include <evl/sched.h>
+#include <evl/thread.h>
 
-#include <px4_platform_common/defines.h>
-#include <px4_platform_common/workqueue.h>
-#include <px4_platform_common/defines.h>
-#include <px4_platform_common/time.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <signal.h>
-#include <errno.h>
-#include <unistd.h>
-#include <parameters/param.h>
-#include "hrt_work.h"
-#include <drivers/drv_hrt.h>
-#include <pthread.h>
-#include <px4_platform_common/init.h>
+#define __stringify_1(x...)	#x
+#define __stringify(x...)	__stringify_1(x)
+#define evl_warn_failed(__fmt, __args...)			\
+	evl_eprintf("%s:%d: FAILED: " __fmt "\n",	\
+		    __FILE__, __LINE__, ##__args)
 
-extern pthread_t _shell_task_id;
+#define __Tcall(__ret, __call)				\
+	({						\
+		(__ret) = (__call);			\
+		if (__ret < 0) {			\
+			evl_warn_failed("%s (=%s)",		\
+					__stringify(__call),	\
+					strerror(-(__ret)));	\
+		}					\
+		(__ret) >= 0;				\
+	})
 
-__BEGIN_DECLS
+#define __Tcall_assert(__ret, __call)		\
+	do {					\
+		if (!__Tcall(__ret, __call))	\
+			exit(__ret);	\
+	} while (0)
 
-long PX4_TICKS_PER_SEC = sysconf(_SC_CLK_TCK);
-
-__END_DECLS
-
-namespace px4
-{
-
-void init_once();
-
-void init_once()
-{
-	_shell_task_id = pthread_self();
-
-	work_queues_init();
-	hrt_work_queue_init();
-
-	px4_platform_init();
-}
-
-void init(int argc, char *argv[], const char *app_name)
-{
-	printf("\n");
-	printf("______  __   __    ___ \n");
-	printf("| ___ \\ \\ \\ / /   /   |\n");
-	printf("| |_/ /  \\ V /   / /| |\n");
-	printf("|  __/   /   \\  / /_| |\n");
-	printf("| |     / /^\\ \\ \\___  |\n");
-	printf("\\_|     \\/   \\/     |_/\n");
-	printf("\n");
-	printf("%s starting.\n", app_name);
-	printf("\n");
-
-	// set the threads name
-#ifdef __PX4_DARWIN
-	(void)pthread_setname_np(app_name);
-#elif !defined(__PX4_EVL4)
-	(void)pthread_setname_np(pthread_self(), app_name);
-#endif
-}
-
-}
+// Attach to evl core and set thread name, scheduling policy and priority.
+#define __attach_and_setsched(__policy, __prio, __fmt, __args...)		\
+	do {								\
+		int __ret;						\
+		__Tcall_assert(__ret, evl_attach_self(__fmt, ##__args));	\
+		struct evl_sched_attrs __attrs;				\
+		__attrs.sched_policy = __policy;				\
+		__attrs.sched_priority = __prio;				\
+		__Tcall_assert(__ret, evl_set_schedattr(__ret, &__attrs));	\
+	} while (0)
