@@ -55,6 +55,11 @@
 static LogHistory g_log_history;
 #endif
 
+#if defined(__PX4_EVL4)
+#include <evl/proxy.h>
+#include <evl/evl.h>
+#endif
+
 static orb_advert_t orb_log_message_pub = nullptr;
 
 __EXPORT const char *__px4_log_level_str[_PX4_LOG_LEVEL_PANIC + 1] = { "DEBUG", "INFO", "WARN", "ERROR", "PANIC" };
@@ -80,21 +85,22 @@ void px4_log_initialize(void)
 __EXPORT void px4_log_modulename(int level, const char *module_name, const char *fmt, ...)
 {
 	static constexpr ssize_t max_length = sizeof(log_message_s::text);
-
+#if not defined(__PX4_EVL4)
 	FILE *out = stdout;
-
+#endif
 #if defined(PX4_LOG_COLORIZED_OUTPUT)
 	bool use_color = true;
 #endif // PX4_LOG_COLORIZED_OUTPUT
 
 #if defined(__PX4_POSIX)
+#if not defined(__PX4_EVL4)
 	bool isatty_ = false;
 	out = get_stdout(&isatty_);
-
 #if defined(PX4_LOG_COLORIZED_OUTPUT)
 	use_color = isatty_;
 #endif // PX4_LOG_COLORIZED_OUTPUT
 #endif // PX4_POSIX
+#endif // PX4_EVL4
 
 	if (level >= _PX4_LOG_LEVEL_INFO) {
 		char buf[max_length + 1]; // same length as log_message_s::text, but add newline
@@ -149,7 +155,12 @@ __EXPORT void px4_log_modulename(int level, const char *module_name, const char 
 		// ensure NULL termination (buffer is max_length + 1)
 		buf[max_length] = 0;
 
+#if defined(__PX4_EVL4)
+		evl_init();
+		evl_printf(buf);
+#else
 		fputs(buf, out);
+#endif
 
 #if defined(BOARD_ENABLE_LOG_HISTORY)
 
@@ -173,7 +184,10 @@ __EXPORT void px4_log_modulename(int level, const char *module_name, const char 
 #if defined(CONFIG_ARCH_BOARD_PX4_SITL)
 		// Without flushing it's tricky to see stdout output when PX4 is started by
 		// a script like for the MAVSDK tests.
+#if not defined(__PX4_EVL4)
 		fflush(out);
+#endif // __PX4_EVL4
+
 #endif // CONFIG_ARCH_BOARD_PX4_SITL
 	}
 
@@ -205,13 +219,16 @@ __EXPORT void px4_log_modulename(int level, const char *module_name, const char 
 
 __EXPORT void px4_log_raw(int level, const char *fmt, ...)
 {
+#if not defined(__PX4_EVL4)
 	FILE *out = stdout;
 
 #ifdef __PX4_POSIX
 	bool use_color = true;
 	out = get_stdout(&use_color);
 #endif
-
+#else
+	bool use_color = true;
+#endif
 	if (level >= _PX4_LOG_LEVEL_INFO) {
 		static constexpr ssize_t max_length = sizeof(log_message_s::text);
 		char buf[max_length + 1]; // same length as log_message_s::text, but add newline
@@ -249,8 +266,12 @@ __EXPORT void px4_log_raw(int level, const char *fmt, ...)
 
 		// ensure NULL termination (buffer is max_length + 1)
 		buf[max_length] = 0;
-
+#if not defined(__PX4_EVL4)
 		fputs(buf, out);
+#else
+		evl_init();
+		evl_printf(buf);
+#endif
 
 #if defined(BOARD_ENABLE_LOG_HISTORY)
 

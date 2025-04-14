@@ -37,7 +37,11 @@
 
 #include <containers/LockGuard.hpp>
 #include <px4_time.h>
-
+#if defined(__PX4_EVL4)
+#include <containers/EvlLockGuard.hpp>
+#include <evl/clock.h>
+#include <evl/event.h>
+#endif
 namespace uORB
 {
 
@@ -60,15 +64,24 @@ public:
 
 	virtual ~SubscriptionBlocking()
 	{
+#if defined(__PX4_EVL4)
+		evl_close_mutex(&_mutex);
+		evl_close_event(&_cv);
+#else
 		pthread_mutex_destroy(&_mutex);
 		pthread_cond_destroy(&_cv);
+#endif
 	}
 
 	void call() override
 	{
 		// signal immediately if no interval, otherwise only if interval has elapsed
 		if ((_interval_us == 0) || (hrt_elapsed_time(&_last_update) >= _interval_us)) {
+#if defined(__PX4_EVL4)
+			evl_signal_event(&_cv);
+#else
 			pthread_cond_signal(&_cv);
+#endif
 		}
 	}
 
@@ -91,29 +104,47 @@ public:
 		} else {
 			// otherwise wait
 
-			LockGuard lg{_mutex};
+			EvlLockGuard lg{_mutex};
 
 			if (timeout_us == 0) {
 				// wait with no timeout
+#if defined(__PX4_EVL4)
+				if (evl_wait_event(&_cv, &_mutex) == 0) {
+					return updated();
+				}
+
+#else
+
 				if (pthread_cond_wait(&_cv, &_mutex) == 0) {
 					return updated();
 				}
+
+#endif
 
 			} else {
 				// otherwise wait with timeout based on interval
 
 				// Calculate an absolute time in the future
 				struct timespec ts;
+#if not defined(__PX4_EVL4)
 				px4_clock_gettime(CLOCK_REALTIME, &ts);
+#else
+				evl_read_clock(EVL_CLOCK_REALTIME, &ts);
+#endif
 				uint64_t nsecs = ts.tv_nsec + (timeout_us * 1000);
 				static constexpr unsigned billion = (1000 * 1000 * 1000);
 				ts.tv_sec += nsecs / billion;
 				nsecs -= (nsecs / billion) * billion;
 				ts.tv_nsec = nsecs;
-
+#if not defined(__PX4_EVL4)
 				if (px4_pthread_cond_timedwait(&_cv, &_mutex, &ts) == 0) {
 					return updated();
 				}
+#else
+				if (evl_timedwait_event(&_cv, &_mutex, &ts) == 0) {
+					return updated();
+				}
+#endif
 			}
 		}
 
@@ -138,8 +169,13 @@ public:
 
 private:
 
+#ifdef __PX4_EVL4
+	struct evl_mutex _mutex = EVL_MUTEX_INITIALIZER(nullptr, EVL_CLOCK_MONOTONIC, 0, EVL_MUTEX_NORMAL);
+	struct evl_event _cv = EVL_EVENT_INITIALIZER(nullptr, EVL_CLOCK_REALTIME, EVL_CLONE_PRIVATE);
+#else
 	pthread_mutex_t _mutex = PTHREAD_MUTEX_INITIALIZER;
 	pthread_cond_t	_cv = PTHREAD_COND_INITIALIZER;
+#endif
 
 };
 
