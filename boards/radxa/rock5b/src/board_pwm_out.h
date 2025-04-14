@@ -54,6 +54,11 @@ public:
 
 	int send_output_pwm(const uint16_t *pwm, int num_outputs) override;
 
+#ifdef __PX4_EVL4
+	int oob_init() override;
+	int oob_send_output_pwm(const uint16_t *pwm, int num_outputs) override;
+#endif
+
 private:
 	int pwm_write_sysfs(char *path, int value);
 	int pwm_write_sysfs_str(char *path,const char* s, int n);
@@ -64,6 +69,9 @@ private:
 	int _pwm_num;
 
 	static const char _device[];
+#ifdef __PX4_EVL4
+	static const char _oob_device[];
+#endif
 };
 
 }

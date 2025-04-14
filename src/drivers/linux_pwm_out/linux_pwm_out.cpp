@@ -38,6 +38,13 @@
 
 #include <px4_platform_common/sem.hpp>
 
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#include <evl/clock.h>
+
+static void *oob_send_trampoline(void *arg);
+#endif
+
 using namespace pwm_out;
 
 LinuxPWMOut::LinuxPWMOut() :
@@ -51,6 +58,12 @@ LinuxPWMOut::~LinuxPWMOut()
 {
 	perf_free(_cycle_perf);
 	perf_free(_interval_perf);
+#ifdef __PX4_EVL4
+	if (oob_thread_running) {
+		int eret;
+		__Tcall_assert(eret, evl_post_flags(&flags, 0x2));
+	}
+#endif
 	delete _pwm_out;
 }
 
@@ -58,7 +71,11 @@ int LinuxPWMOut::init()
 {
 	_pwm_out = new BOARD_PWM_OUT_IMPL(MAX_ACTUATORS);
 
+#ifdef __PX4_EVL4
+	int ret = _pwm_out->oob_init();
+#else
 	int ret = _pwm_out->init();
+#endif
 
 	if (ret != 0) {
 		PX4_ERR("PWM output init failed");
@@ -66,6 +83,14 @@ int LinuxPWMOut::init()
 		_pwm_out = nullptr;
 		return ret;
 	}
+#ifdef __PX4_EVL4
+	int eret;
+	pthread_t oob_send;
+
+	__Tcall_assert(eret, evl_create_flags(&flags, EVL_CLOCK_MONOTONIC, 0, EVL_CLONE_PUBLIC, "LinuxPWMOut_flags"));
+	pthread_create(&oob_send, nullptr, oob_send_trampoline, this);
+	oob_thread_running = true;
+#endif
 
 	ScheduleNow();
 
@@ -98,7 +123,15 @@ int LinuxPWMOut::task_spawn(int argc, char *argv[])
 bool LinuxPWMOut::updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
 				unsigned num_outputs, unsigned num_control_groups_updated)
 {
+#ifdef __PX4_EVL4
+	int eret;
+
+	inner_arg.outputs = outputs;
+	inner_arg.num_outputs = num_outputs;
+	__Tcall_assert(eret, evl_post_flags(&flags, 0x1));
+#else
 	_pwm_out->send_output_pwm(outputs, num_outputs);
+#endif
 	return true;
 }
 
@@ -163,6 +196,32 @@ Linux PWM output driver with board-specific backend implementation.
 
 	return 0;
 }
+
+#ifdef __PX4_EVL4
+static void *oob_send_trampoline(void *arg)
+{
+	LinuxPWMOut *pwm_out = (LinuxPWMOut *)arg;
+	int rbits = 0;
+	int eret;
+
+	__attach_and_setsched(SCHED_FIFO, SCHED_PRIORITY_FAST_DRIVER, "oob_send_trampoline", nullptr);
+
+	while (1) {
+		__Tcall_assert(eret, evl_wait_some_flags(&pwm_out->flags, 0x1 | 0x2, &rbits));
+
+		if (rbits & 0x2) {
+			__Tcall_assert(eret, evl_close_flags(&pwm_out->flags));
+			evl_detach_self();
+			break;
+		}
+
+		PWMOutBase* pwm_out_base = pwm_out->get_pwm_out();
+		pwm_out_base->oob_send_output_pwm(pwm_out->inner_arg.outputs, pwm_out->inner_arg.num_outputs);
+	}
+
+	return nullptr;
+}
+#endif
 
 extern "C" __EXPORT int linux_pwm_out_main(int argc, char *argv[])
 {

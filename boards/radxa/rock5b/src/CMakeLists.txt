@@ -31,6 +31,10 @@
 #
 ############################################################################
 
+if(EVL4_TARGET)
+	add_definitions( "-D__PX4_EVL4" )
+endif()
+
 add_library(drivers_board
 	i2c.cpp
 	spi.cpp
