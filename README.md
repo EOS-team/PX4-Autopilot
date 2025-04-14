@@ -24,6 +24,35 @@ PX4 is highly portable, OS-independent and supports Linux, NuttX and MacOS out o
 
 Release notes and supporting information for PX4 releases can be found on the [Developer Guide](https://docs.px4.io/main/en/releases/).
 
+## Building a PX4 for Radxa's rock5b+
+
+1. **Prepare a build host**, such as an x86 Ubuntu 20.04 machine.
+
+2. **Set up the PX4 build environment** on the build host. You can refer to the official guide:
+   https://docs.px4.io/v1.15/en/dev_setup/dev_env.html
+
+3. **Install the cross-compilation tools** `aarch64-linux-gnu-gcc` and `aarch64-linux-gnu-g++`.
+   On Ubuntu, these commands are provided by the packages `gcc-aarch64-linux-gnu` and `g++-aarch64-linux-gnu`.
+
+4. **Clone this repository**, switch to the correct branch, and initialize all Git submodules.
+
+5. Run the following command to build PX4 for Rock5B Plus:
+   ```bash
+   make radxa_rock5bplus
+   ```
+6. Run the following command to upload the PX4 image to the target board:
+   ```bash
+   make radxa_rock5bplus upload
+   ```
+   By default, the login user is `radxa`. You can configure the target board's IP and login user
+   using the environment variables `AUTOPILOT_HOST` and `AUTOPILOT_USER`.
+7. On the target board, navigate to the px4 directory in the home folder and run:
+   ```bash
+   sudo ./bin/px4 -s ./rock5bplus.config
+   ```
+   to launch PX4 and observe the runtime behavior.
+
+
 ## Building a PX4 based drone, rover, boat or robot
 
 The [PX4 User Guide](https://docs.px4.io/main/en/) explains how to assemble [supported vehicles](https://docs.px4.io/main/en/airframes/airframe_reference.html) and fly drones with PX4. See the [forum and chat](https://docs.px4.io/main/en/#getting-help) if you need help!
