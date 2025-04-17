@@ -6,6 +6,11 @@ CONFIG:
       buildType: RelWithDebInfo
       settings:
         CONFIG: px4_sitl_default
+    px4_sitl_evl4:
+      short: px4_sitl_evl4
+      buildType: RelWithDebInfo
+      settings:
+        CONFIG: px4_sitl_evl4
     px4_sitl_nolockstep:
       short: px4_sitl_nolockstep
       buildType: RelWithDebInfo
@@ -426,3 +431,8 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: x-mav_ap-h743v2_default
+    radxa_rock5b_default:
+      short: radxa_rock5b
+      buildType: RelWithDebInfo
+      settings:
+        CONFIG: radxa_rock5b_default

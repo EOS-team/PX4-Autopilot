@@ -45,6 +45,12 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <errno.h>
+#include <string.h>
+
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#include <evl/evl.h>
+#endif
 
 #if (defined(__PX4_DARWIN) || defined(__PX4_CYGWIN) || defined(__PX4_POSIX)) && !defined(__PX4_QURT)
 
@@ -216,4 +222,74 @@ int px4_sem_destroy(px4_sem_t *s)
 	return 0;
 }
 
-#endif
+#ifdef __PX4_EVL4
+#include <px4_platform_common/posix.h>
+
+int evl_sem_init(evl_sem_t *s, int pshared, unsigned value)
+{
+	// We do not used the process shared arg
+	(void)pshared;
+	int ret;
+	__Tcall_assert(ret, evl_init());
+	__Tcall_assert(ret, evl_create_sem(s, EVL_CLOCK_MONOTONIC, value, EVL_CLONE_PRIVATE, nullptr));
+	return 0;
+}
+
+int evl_sem_setprotocol(evl_sem_t *s, int protocol)
+{
+	return 0;
+}
+
+int evl_sem_wait(evl_sem_t *s)
+{
+	int ret;
+	// __Tcall_assert(ret, evl_get_sem(s));
+	ret = evl_get_sem(s);
+	if (ret < 0) {
+		throw "evl_get_sem failed";
+	}
+	return -ret;
+}
+
+int evl_sem_trywait(evl_sem_t *s)
+{
+	int ret;
+	__Tcall_assert(ret, evl_tryget_sem(s));
+	return -ret;
+}
+
+int evl_sem_timedwait(evl_sem_t *s, const struct timespec *abstime)
+{
+	int ret;
+	__Tcall_assert(ret, evl_timedget_sem(s, abstime));
+	return -ret;
+}
+
+int evl_sem_post(evl_sem_t *s)
+{
+	int ret;
+	// __Tcall_assert(ret, evl_put_sem(s));
+	ret = evl_put_sem(s);
+	if (ret < 0) {
+		throw "evl_put_sem failed";
+	}
+	return -ret;
+}
+
+int evl_sem_getvalue(evl_sem_t *s, int *sval)
+{
+	int ret;
+	__Tcall_assert(ret, evl_peek_sem(s, sval));
+	return -ret;
+}
+
+int evl_sem_destroy(evl_sem_t *s)
+{
+	int ret;
+	__Tcall_assert(ret, evl_close_sem(s));
+	return -ret;
+}
+
+#endif // !defined(__PX4_EVL4)
+
+#endif // (defined(__PX4_DARWIN) || defined(__PX4_CYGWIN) || defined(__PX4_POSIX)) && !defined(__PX4_QURT)

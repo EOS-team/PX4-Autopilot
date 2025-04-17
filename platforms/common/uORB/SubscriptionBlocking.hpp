@@ -37,7 +37,6 @@
 
 #include <containers/LockGuard.hpp>
 #include <px4_time.h>
-
 namespace uORB
 {
 
@@ -90,11 +89,11 @@ public:
 
 		} else {
 			// otherwise wait
-
 			LockGuard lg{_mutex};
 
 			if (timeout_us == 0) {
 				// wait with no timeout
+
 				if (pthread_cond_wait(&_cv, &_mutex) == 0) {
 					return updated();
 				}
@@ -104,6 +103,7 @@ public:
 
 				// Calculate an absolute time in the future
 				struct timespec ts;
+
 				px4_clock_gettime(CLOCK_REALTIME, &ts);
 				uint64_t nsecs = ts.tv_nsec + (timeout_us * 1000);
 				static constexpr unsigned billion = (1000 * 1000 * 1000);
@@ -114,6 +114,7 @@ public:
 				if (px4_pthread_cond_timedwait(&_cv, &_mutex, &ts) == 0) {
 					return updated();
 				}
+
 			}
 		}
 
@@ -137,10 +138,8 @@ public:
 	}
 
 private:
-
 	pthread_mutex_t _mutex = PTHREAD_MUTEX_INITIALIZER;
 	pthread_cond_t	_cv = PTHREAD_COND_INITIALIZER;
-
 };
 
 } // namespace uORB

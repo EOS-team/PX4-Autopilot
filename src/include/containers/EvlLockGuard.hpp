@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2017 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2025 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,47 +31,31 @@
  *
  ****************************************************************************/
 
-#pragma once
+ #pragma once
 
-#include <px4_platform/pwm_out_base.h>
+#include <pthread.h>
 
-#define BOARD_PWM_OUT_IMPL RockSysfsPWMOut
+#include <px4_platform_common/evl_helper.h>
+#include <evl/mutex.h>
 
-namespace pwm_out
-{
-
-/**
- ** class RockSysfsPWMOut
- * PWM output class for Navio Sysfs
- */
-class RockSysfsPWMOut : public PWMOutBase
+class EvlLockGuard
 {
 public:
-	RockSysfsPWMOut(int max_num_outputs);
-	virtual ~RockSysfsPWMOut();
+	explicit EvlLockGuard(struct evl_mutex &mutex) :
+		_mutex(mutex)
+	{
+		int eret;
+		__Tcall_assert(eret, evl_lock_mutex(&_mutex));
+	}
+	EvlLockGuard(const EvlLockGuard &other) = delete;
+	EvlLockGuard &operator=(const EvlLockGuard &other) = delete;
 
-	int init() override;
-
-	int send_output_pwm(const uint16_t *pwm, int num_outputs) override;
-
-#ifdef __PX4_EVL4
-	int oob_init() override;
-	int oob_send_output_pwm(const uint16_t *pwm, int num_outputs) override;
-#endif
+	~EvlLockGuard()
+	{
+		int eret;
+		__Tcall_assert(eret, evl_unlock_mutex(&_mutex));
+	}
 
 private:
-	int pwm_write_sysfs(char *path, int value);
-	int pwm_write_sysfs_str(char *path,const char* s, int n);
-	static const int MAX_NUM_PWM = 4;
-	static const int FREQUENCY_PWM = 400;
-
-	int _pwm_fd[MAX_NUM_PWM];
-	int _pwm_num;
-
-	static const char _device[];
-#ifdef __PX4_EVL4
-	static const char _oob_device[];
-#endif
+	struct evl_mutex &_mutex;
 };
-
-}

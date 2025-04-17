@@ -41,6 +41,10 @@
 
 #include <semaphore.h>
 
+#if defined(__PX4_EVL4)
+#include <evl/sem.h>
+#endif
+
 #if !defined(__PX4_NUTTX)
 /* Values for protocol attribute */
 
@@ -54,6 +58,9 @@
 
 __BEGIN_DECLS
 
+#if defined(__PX4_EVL4)
+typedef struct evl_sem evl_sem_t;
+#endif // __PX4_EVL4
 typedef struct {
 	pthread_mutex_t lock;
 	pthread_cond_t wait;
@@ -68,7 +75,16 @@ __EXPORT int		px4_sem_timedwait(px4_sem_t *sem, const struct timespec *abstime);
 __EXPORT int		px4_sem_post(px4_sem_t *s);
 __EXPORT int		px4_sem_getvalue(px4_sem_t *s, int *sval);
 __EXPORT int		px4_sem_destroy(px4_sem_t *s);
-
+#if defined(__PX4_EVL4)
+__EXPORT int		evl_sem_init(evl_sem_t *s, int pshared, unsigned value);
+__EXPORT int		evl_sem_setprotocol(evl_sem_t *s, int protocol);
+__EXPORT int		evl_sem_wait(evl_sem_t *s);
+__EXPORT int		evl_sem_trywait(evl_sem_t *sem);
+__EXPORT int		evl_sem_timedwait(evl_sem_t *sem, const struct timespec *abstime);
+__EXPORT int		evl_sem_post(evl_sem_t *s);
+__EXPORT int		evl_sem_getvalue(evl_sem_t *s, int *sval);
+__EXPORT int		evl_sem_destroy(evl_sem_t *s);
+#endif
 __END_DECLS
 
 //#elif defined(__PX4_QURT)

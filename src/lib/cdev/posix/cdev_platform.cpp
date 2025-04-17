@@ -42,6 +42,14 @@
 
 #include <stdlib.h>
 
+#ifdef __PX4_EVL4
+#include <evl/thread.h>
+#include <evl/mutex.h>
+#include <evl/poll.h>
+#include <evl/clock.h>
+#include <px4_platform_common/evl_helper.h>
+#endif
+
 const cdev::px4_file_operations_t cdev::CDev::fops = {};
 
 pthread_mutex_t devmutex = PTHREAD_MUTEX_INITIALIZER;
@@ -441,6 +449,170 @@ extern "C" {
 		// return the negative error number if failed
 		return (count) ? count : ret;
 	}
+#if defined(__PX4_EVL4)
+	int px4_poll_init(px4_pollfd_struct_t *fds, unsigned int nfds)
+	{
+		if (nfds == 0) {
+			PX4_WARN("px4_poll_init with no fds");
+			return -1;
+		}
+
+		// Init evl_sem
+		int ret = 0;
+		evl_sem_t *esem = (struct evl_sem *) malloc(sizeof(struct evl_sem));
+		if (esem == nullptr) {
+			PX4_ERR("px4_poll_init: malloc evl_sem failed");
+			return -1;
+		}
+		__Tcall_assert(ret, evl_new_sem(esem, nullptr));
+		for (unsigned int i = 0; i < nfds; ++i) {
+			fds[i].esem     = esem;
+			fds[i].sem_fd 	= ret;
+		}
+
+		// Init evl_pollfd
+		int efd;
+		__Tcall_assert(efd, evl_new_poll());
+		fds[0].efd = efd;
+
+		// Add sem fd to pollfd
+		/* We do not use the evl_value here, so set it to evl_nil.
+		 There is fds[0].efd, because we only init the head of the array, and the rest is
+		 same as fds[0].efd. And the events are set to POLLIN, so we can use the same
+		 */
+		__Tcall_assert(ret, evl_add_pollfd(fds[0].efd, fds[0].sem_fd, fds[0].events, evl_nil));
+
+		// Init pollset
+		fds[0].pollset = (struct evl_poll_event *)malloc(sizeof(struct evl_poll_event) * nfds);
+		if (fds[0].pollset == nullptr) {
+			PX4_ERR("px4_poll_init: malloc pollset failed");
+			return -1;
+		}
+		return 0;
+	}
+
+	int px4_poll_destory(px4_pollfd_struct_t *fds, unsigned int nfds)
+	{
+		if (nfds == 0) {
+			PX4_WARN("px4_poll_destory with no fds");
+			return -1;
+		}
+		evl_del_pollfd(fds[0].efd, fds[0].sem_fd);
+		for (unsigned int i = 0; i < nfds; ++i) {
+			evl_close_sem(fds[i].esem);
+			free(fds[i].esem);
+		}
+		free(fds[0].pollset);
+		return 0;
+	}
+
+	int px4_oob_poll(px4_pollfd_struct_t *fds, unsigned int nfds, int timeout)
+	{
+		if (nfds == 0) {
+			PX4_WARN("px4_poll with no fds");
+			return -1;
+		}
+
+		int count = 0;
+		int ret = -1;
+
+		const unsigned NAMELEN = 32;
+		char thread_name[NAMELEN] {};
+
+		snprintf(thread_name, NAMELEN, "efd: %d", evl_get_self());
+
+		PX4_DEBUG("Called px4_poll timeout = %d", timeout);
+
+		// Go through all fds and check them for a pollable state
+		bool fd_pollable = false;
+
+		for (unsigned int i = 0; i < nfds; ++i) {
+			fds[i].revents = 0;
+			fds[i].priv    = nullptr;
+
+			cdev::CDev *dev = getFile(fds[i].fd);
+
+			// If fd is valid
+			if (dev) {
+				PX4_DEBUG("%s: px4_poll: CDev->poll(setup) %d", thread_name, fds[i].fd);
+				ret = dev->poll(&filemap[fds[i].fd], &fds[i], true);
+
+				if (ret < 0) {
+					PX4_WARN("%s: px4_poll() error: %s", thread_name, strerror(errno));
+					break;
+				}
+
+				if (ret >= 0) {
+					fd_pollable = true;
+				}
+			}
+		}
+
+		// If any FD can be polled, lock the semaphore and
+		// check for new data
+		if (fd_pollable) {
+			if (timeout > 0) {
+				// Get the current time
+				struct timespec ts;
+				// Note, we can't actually use CLOCK_MONOTONIC on macOS
+				// but that's hidden and implemented in px4_clock_gettime.
+				evl_read_clock(EVL_CLOCK_MONOTONIC, &ts);
+
+				// Calculate an absolute time in the future
+				const unsigned billion = (1000 * 1000 * 1000);
+				uint64_t nsecs = ts.tv_nsec + ((uint64_t)timeout * 1000 * 1000);
+				ts.tv_sec += nsecs / billion;
+				nsecs -= (nsecs / billion) * billion;
+				ts.tv_nsec = nsecs;
+
+				ret = evl_timedpoll(fds[0].efd, fds[0].pollset, nfds, &ts);
+				if (ret < 0 && ret != -ETIMEDOUT) {
+					struct evl_thread_state stat;
+					evl_get_state(evl_get_self(), &stat);
+					evl_eprintf("stat.prio: %d\n", stat.eattrs.sched_priority);
+					PX4_WARN("%s: px4_poll() sem error: %s", thread_name, strerror(errno));
+					if (ret != -EINTR) {
+						exit(-1);
+					} else {
+						PX4_WARN("sleep 500us now");
+						evl_usleep(500);
+					}
+				}
+			} else if (timeout < 0) {
+				ret = evl_poll(fds[0].efd, fds[0].pollset, nfds);
+				if (ret < 0) {
+					PX4_WARN("%s: px4_poll() sem error: %s", thread_name, strerror(errno));
+				}
+			}
+			if (ret > 0) {
+				// poll successfully
+				count = ret;
+			}
+
+			// We have waited now (or not, depending on timeout),
+			// go through all fds and count how many have data
+			for (unsigned int i = 0; i < nfds; ++i) {
+
+				cdev::CDev *dev = getFile(fds[i].fd);
+
+				// If fd is valid
+				if (dev) {
+					PX4_DEBUG("%s: px4_poll: CDev->poll(teardown) %d", thread_name, fds[i].fd);
+					ret = dev->poll(&filemap[fds[i].fd], &fds[i], false);
+
+					if (ret < 0) {
+						PX4_WARN("%s: px4_poll() 2nd poll fail", thread_name);
+						break;
+					}
+				}
+			}
+		}
+
+		// Return the positive count if present,
+		// return the negative error number if failed
+		return (count) ? count : ret;
+	}
+#endif
 
 	int px4_access(const char *pathname, int mode)
 	{
