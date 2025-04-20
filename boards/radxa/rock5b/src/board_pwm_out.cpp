@@ -41,9 +41,20 @@
 #include <unistd.h>
 #include <px4_platform_common/log.h>
 
+#ifdef __PX4_EVL4
+#include <evl/syscall.h>
+#include <linux/pwm.h>
+#include <string.h>
+#include <px4_platform_common/evl_helper.h>
+#endif
+
 using namespace pwm_out;
 
 const char RockSysfsPWMOut::_device[] = "/sys/class/pwm/pwmchip";
+
+#if defined(__PX4_EVL4)
+const char RockSysfsPWMOut::_oob_device[] = "/dev/pwm";
+#endif
 
 RockSysfsPWMOut::RockSysfsPWMOut(int max_num_outputs)
 {
@@ -115,6 +126,26 @@ int RockSysfsPWMOut::init()
 	return 0;
 }
 
+#ifdef __PX4_EVL4
+int RockSysfsPWMOut::oob_init()
+{
+	int i;
+	char path[128];
+
+	for (i = 0; i < _pwm_num; ++i) {
+		::snprintf(path, sizeof(path), "%s%d", _oob_device, i>0?i+1:0); // 1 is pwm fan
+		_pwm_fd[i] = ::open(path, O_WRONLY | O_OOB);
+
+		if (_pwm_fd[i] == -1) {
+			PX4_ERR("PWM: Failed to open %s. error: %s", path, strerror(errno));
+			return -errno;
+		}
+	}
+
+	return 0;
+}
+#endif
+
 int RockSysfsPWMOut::send_output_pwm(const uint16_t *pwm, int num_outputs)
 {
 	char data[16];
@@ -137,6 +168,35 @@ int RockSysfsPWMOut::send_output_pwm(const uint16_t *pwm, int num_outputs)
 
 	return ret;
 }
+
+#ifdef __PX4_EVL4
+int RockSysfsPWMOut::oob_send_output_pwm(const uint16_t *pwm, int num_outputs)
+{
+	if (num_outputs > _pwm_num) {
+		num_outputs = _pwm_num;
+	}
+
+	int ret = 0;
+	struct pwm_state_request req;
+
+	req.enabled = true;
+        req.polarity = PWM_UAPI_POLARITY_NORMAL;
+        req.period = (int)1e9 / FREQUENCY_PWM;
+
+	//convert this to duty_cycle in ns
+	for (int i = 0; i < num_outputs; ++i) {
+		req.duty_cycle = pwm[i] * 1000;
+		ret = ioctl(_pwm_fd[i], PWM_SET_STATE_IOCTL, &req);
+
+		if (ret < 0) {
+			PX4_ERR("PWM: Failed to oob_set duty cycle. error: %s", strerror(errno));
+			return -errno;
+		}
+	}
+
+	return ret;
+}
+#endif
 
 int RockSysfsPWMOut::pwm_write_sysfs(char *path, int value)
 {

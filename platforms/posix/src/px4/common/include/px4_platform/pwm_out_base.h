@@ -51,6 +51,11 @@ public:
 	virtual int init() = 0;
 
 	virtual int send_output_pwm(const uint16_t *pwm, int num_outputs) = 0;
+
+#ifdef __PX4_EVL4
+	virtual int oob_init() = 0;
+	virtual int oob_send_output_pwm(const uint16_t *pwm, int num_outputs) = 0;
+#endif
 };
 
 
