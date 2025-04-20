@@ -47,6 +47,10 @@
 #include <uORB/topics/parameter_update.h>
 #include <px4_platform/pwm_out_base.h>
 
+#ifdef __PX4_EVL4
+#include <evl/flags.h>
+#endif
+
 using namespace time_literals;
 
 class LinuxPWMOut : public ModuleBase<LinuxPWMOut>, public OutputModuleInterface
@@ -73,6 +77,16 @@ public:
 
 	bool updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
 			   unsigned num_outputs, unsigned num_control_groups_updated) override;
+
+#ifdef __PX4_EVL4
+	struct evl_flags flags;
+	bool oob_thread_running = false;
+	struct InnerArg {
+		uint16_t *outputs;
+		unsigned num_outputs;
+	} inner_arg;
+	pwm_out::PWMOutBase *get_pwm_out() { return _pwm_out; }
+#endif
 
 private:
 	static constexpr int MAX_ACTUATORS = 8;

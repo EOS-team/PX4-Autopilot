@@ -74,6 +74,14 @@
 #include <px4_platform_common/tasks.h>
 #include <px4_platform_common/posix.h>
 
+#ifdef __PX4_EVL4
+#include <px4_platform_common/evl_helper.h>
+#include <evl/evl.h>
+#include <evl/thread.h>
+#include <evl/sched.h>
+#include <evl/flags.h>
+#endif
+
 #include "apps.h"
 #include "px4_daemon/client.h"
 #include "px4_daemon/server.h"
@@ -198,6 +206,11 @@ int main(int argc, char **argv)
 
 #endif // (_POSIX_MEMLOCK > 0) && !ENABLE_LOCKSTEP_SCHEDULER
 
+#ifdef __PX4_EVL4
+		// evl init
+		int eret;
+		__Tcall_assert(eret, evl_init());
+#endif
 		/* Server/daemon apps need to parse the command line arguments. */
 		std::string data_path{};
 		std::string working_directory{};
@@ -350,6 +363,11 @@ int main(int argc, char **argv)
 			return ret;
 		}
 
+#ifdef __PX4_EVL4
+		// we just need weak thread here, because only a few init steps need
+		// evl services, and most of time thread is in-band.
+		evl_attach_self("/px4");
+#endif
 		px4::init_once();
 		px4::init(argc, argv, "px4");
 
@@ -498,6 +516,15 @@ void register_sig_handler()
 
 	sigaction(SIGTERM, &sig_int, nullptr);
 	sigaction(SIGPIPE, &sig_pipe, nullptr);
+
+#ifdef __PX4_EVL4
+	// Register the SIGDEBUG handler
+	struct sigaction sig_evl;
+	memset(&sig_evl, 0, sizeof(sig_evl));
+	sig_evl.sa_sigaction = evl_sigdebug_handler;
+	sig_evl.sa_flags = SA_SIGINFO;
+	sigaction(SIGDEBUG, &sig_evl, nullptr);
+#endif
 }
 
 void sig_int_handler(int sig_num)

@@ -58,6 +58,9 @@ if(ENABLE_LOCKSTEP_SCHEDULER)
 	target_link_libraries(px4_layer PRIVATE lockstep_scheduler)
 endif()
 
+if(EVL4_TARGET)
+	target_link_libraries(px4_layer PRIVATE evl)
+endif()
 
 if(EXTRA_DEPENDS)
 	add_dependencies(px4_layer ${EXTRA_DEPENDS})

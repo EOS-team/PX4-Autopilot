@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2017 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2025 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,48 +30,46 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
-
 #pragma once
 
-#include <px4_platform/pwm_out_base.h>
+#include <string.h>
+#include <stdlib.h>
+#include <evl/proxy.h>
+#include <evl/sched.h>
+#include <evl/thread.h>
 
-#define BOARD_PWM_OUT_IMPL RockSysfsPWMOut
+#define O_OOB 010000000000
 
-namespace pwm_out
-{
+#define __stringify_1(x...)	#x
+#define __stringify(x...)	__stringify_1(x)
+#define evl_warn_failed(__fmt, __args...)			\
+	evl_eprintf("%s:%d: FAILED: " __fmt "\n",	\
+		    __FILE__, __LINE__, ##__args)
 
-/**
- ** class RockSysfsPWMOut
- * PWM output class for Navio Sysfs
- */
-class RockSysfsPWMOut : public PWMOutBase
-{
-public:
-	RockSysfsPWMOut(int max_num_outputs);
-	virtual ~RockSysfsPWMOut();
+#define __Tcall(__ret, __call)				\
+	({						\
+		(__ret) = (__call);			\
+		if (__ret < 0) {			\
+			evl_warn_failed("%s (=%s)",		\
+					__stringify(__call),	\
+					strerror(-(__ret)));	\
+		}					\
+		(__ret) >= 0;				\
+	})
 
-	int init() override;
+#define __Tcall_assert(__ret, __call)		\
+	do {					\
+		if (!__Tcall(__ret, __call))	\
+			exit(__ret);	\
+	} while (0)
 
-	int send_output_pwm(const uint16_t *pwm, int num_outputs) override;
-
-#ifdef __PX4_EVL4
-	int oob_init() override;
-	int oob_send_output_pwm(const uint16_t *pwm, int num_outputs) override;
-#endif
-
-private:
-	int pwm_write_sysfs(char *path, int value);
-	int pwm_write_sysfs_str(char *path,const char* s, int n);
-	static const int MAX_NUM_PWM = 4;
-	static const int FREQUENCY_PWM = 400;
-
-	int _pwm_fd[MAX_NUM_PWM];
-	int _pwm_num;
-
-	static const char _device[];
-#ifdef __PX4_EVL4
-	static const char _oob_device[];
-#endif
-};
-
-}
+// Attach to evl core and set thread name, scheduling policy and priority.
+#define __attach_and_setsched(__policy, __prio, __fmt, __args...)		\
+	do {								\
+		int __ret;						\
+		__Tcall_assert(__ret, evl_attach_self(__fmt, ##__args));	\
+		struct evl_sched_attrs __attrs;				\
+		__attrs.sched_policy = __policy;				\
+		__attrs.sched_priority = __prio;				\
+		__Tcall_assert(__ret, evl_set_schedattr(__ret, &__attrs));	\
+	} while (0)
